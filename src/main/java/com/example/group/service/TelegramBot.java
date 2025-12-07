@@ -1,6 +1,7 @@
 package com.example.group.service;
 
 import com.example.group.config.BotConfig;
+import com.example.group.service.util.MessageCleaner;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -21,6 +22,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     // --- Бизнес-сервисы ---
     private final MorningScheduler morningScheduler;
     private final ReminderScheduler reminderScheduler;
+    private final FlowCleanerScheduler flowCleanerScheduler;
     private final PatternParser patternParser;
     private final SlotService slotService;
     private final BookingFlowService bookingFlow;
@@ -44,6 +46,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         // Планировщики запускаются здесь
         morningScheduler.start(this);
         reminderScheduler.start(this);
+        flowCleanerScheduler.start(this);
     }
 
     @Override

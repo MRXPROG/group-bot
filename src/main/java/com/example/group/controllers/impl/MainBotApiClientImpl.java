@@ -3,9 +3,13 @@ package com.example.group.controllers.impl;
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.SlotDTO;
 import lombok.RequiredArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -47,6 +51,29 @@ public class MainBotApiClientImpl implements MainBotApiClient {
         } catch (Exception e) {
             log.error("Failed to load upcoming slots: {}", e.getMessage());
             return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public SlotDTO getSlotById(Long slotId) {
+        try {
+            String url = baseUrl + "/api/group/slots/" + slotId;
+            return restTemplate.getForObject(url, SlotDTO.class);
+        } catch (Exception e) {
+            log.error("Failed to load slot {}: {}", slotId, e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    public boolean userHasInn(Long telegramUserId) {
+        try {
+            String url = baseUrl + "/api/group/users/" + telegramUserId + "/inn";
+            ResponseEntity<Boolean> resp = restTemplate.getForEntity(url, Boolean.class);
+            return Boolean.TRUE.equals(resp.getBody());
+        } catch (Exception e) {
+            log.error("Failed to check INN for user {}: {}", telegramUserId, e.getMessage());
+            return false;
         }
     }
 
