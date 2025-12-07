@@ -1,6 +1,8 @@
 package com.example.group.service;
 
 import com.example.group.dto.SlotDTO;
+import com.example.group.model.UserFlowState;
+import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 

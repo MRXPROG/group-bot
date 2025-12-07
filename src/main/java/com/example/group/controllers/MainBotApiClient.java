@@ -13,6 +13,10 @@ public interface MainBotApiClient {
     /** Все будущие слоты (для утренней рассылки) */
     List<SlotDTO> getUpcomingSlots();
 
+    SlotDTO getSlotById(Long slotId);
+
+    boolean userHasInn(Long telegramUserId);
+
     /** Создать запись на слот для пользователя */
     void createBooking(Long telegramUserId, Long slotId);
 }

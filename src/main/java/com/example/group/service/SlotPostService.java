@@ -1,5 +1,23 @@
 package com.example.group.service;
 
+import com.example.group.config.BotConfig;
+import com.example.group.dto.SlotDTO;
+import com.example.group.model.GroupShiftMessage;
+import com.example.group.repository.GroupShiftMessageRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -12,10 +30,6 @@ public class SlotPostService {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy", UA);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", UA);
 
-    /**
-     * Публикация сообщения о слоте в группу.
-     * Вызывается утренним планировщиком.
-     */
     public Message publishSlotPost(TelegramLongPollingBot bot, Long chatId, SlotDTO s) throws Exception {
         String date = s.getStartTime().toLocalDate().format(DATE);
         String time = s.getStartTime().toLocalTime().format(TIME) + " — " +
@@ -37,7 +51,7 @@ public class SlotPostService {
         );
 
         InlineKeyboardButton join = new InlineKeyboardButton();
-        join.setText("🟢 Записатись через бота");
+        join.setText("🟢 Записатись");
         join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
 
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
@@ -48,7 +62,6 @@ public class SlotPostService {
 
         Message sent = bot.execute(sm);
 
-        // сохранить связь slot ↔ message
         GroupShiftMessage gsm = GroupShiftMessage.builder()
                 .chatId(chatId)
                 .messageId(sent.getMessageId())
@@ -61,9 +74,6 @@ public class SlotPostService {
         return sent;
     }
 
-    /**
-     * Напоминание к уже опубликованной смене (reply на исходный пост).
-     */
     public void sendReminder(TelegramLongPollingBot bot,
                              Long chatId,
                              Integer messageId,

@@ -56,8 +56,8 @@ public class PatternParser {
                     date,
                     range.start(),
                     range.end(),
-                    nameLine,
-                    placeLine
+                    placeLine,
+                    nameLine
             );
             return Optional.of(req);
         } catch (Exception e) {

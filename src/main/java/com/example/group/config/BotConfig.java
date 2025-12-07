@@ -16,6 +16,12 @@ public class BotConfig {
     @Value("${bot.token}")
     String token;
 
-    @Value("${api.url}")
+    @Value("${mainbot.api.base-url}")
     String apiUrl;
+
+    @Value("${mainbot.username}")
+    String mainBotUsername;
+
+    @Value("${group.chat-id}")
+    Long groupChatId;
 }
