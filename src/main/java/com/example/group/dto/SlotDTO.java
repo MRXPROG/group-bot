@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -20,4 +22,6 @@ public class SlotDTO {
     private int capacity;
     private int bookedCount;
     private boolean innRequired;
+
+    private List<SlotBookingDTO> bookings = new ArrayList<>();
 }

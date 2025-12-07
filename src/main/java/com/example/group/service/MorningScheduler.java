@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -21,20 +22,23 @@ public class MorningScheduler {
 
     private TelegramBot bot;
 
-    @Scheduled(cron = "0 0 7 * * *")
+    @Scheduled(cron = "0 0 9 * * *")
     public void run() {
         if (bot == null) {
             log.warn("MorningScheduler: bot is not set yet");
             return;
         }
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
         List<SlotDTO> slots = api.getUpcomingSlots();
-        slots.forEach(slot -> {
-            try {
-                slotPostService.publishSlotPost(bot, config.getGroupChatId(), slot);
-            } catch (Exception e) {
-                log.error("Failed to publish slot {}: {}", slot.getId(), e.getMessage());
-            }
-        });
+        slots.stream()
+                .filter(slot -> !slot.getStartTime().toLocalDate().isBefore(tomorrow))
+                .forEach(slot -> {
+                    try {
+                        slotPostService.publishSlotPost(bot, config.getGroupChatId(), slot, true, false);
+                    } catch (Exception e) {
+                        log.error("Failed to publish slot {}: {}", slot.getId(), e.getMessage());
+                    }
+                });
     }
 
     public void start(TelegramBot bot) {
