@@ -21,6 +21,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final BotConfig config;
 
     private final MorningScheduler morningScheduler;
+    private final EveningScheduler eveningScheduler;
     private final ReminderScheduler reminderScheduler;
     private final FlowCleanerScheduler flowCleanerScheduler;
     private final PatternParser patternParser;
@@ -45,6 +46,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         // Планировщики запускаются здесь
         morningScheduler.start(this);
+        eveningScheduler.start(this);
         reminderScheduler.start(this);
         flowCleanerScheduler.start(this);
     }

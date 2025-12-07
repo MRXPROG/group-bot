@@ -23,4 +23,7 @@ public class GroupShiftMessage {
     private Long slotId;
 
     private LocalDateTime postedAt;
+
+    private boolean morningPost;
+    private boolean eveningPost;
 }

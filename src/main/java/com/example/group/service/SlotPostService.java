@@ -1,6 +1,8 @@
 package com.example.group.service;
 
 import com.example.group.config.BotConfig;
+import com.example.group.dto.BookingStatusDTO;
+import com.example.group.dto.SlotBookingDTO;
 import com.example.group.dto.SlotDTO;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
@@ -15,8 +17,8 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -31,11 +33,21 @@ public class SlotPostService {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", UA);
 
     public Message publishSlotPost(TelegramLongPollingBot bot, Long chatId, SlotDTO s) throws Exception {
+        return publishSlotPost(bot, chatId, s, false, false);
+    }
+
+    public Message publishSlotPost(TelegramLongPollingBot bot,
+                                   Long chatId,
+                                   SlotDTO s,
+                                   boolean morningPost,
+                                   boolean eveningPost) throws Exception {
         String date = s.getStartTime().toLocalDate().format(DATE);
         String time = s.getStartTime().toLocalTime().format(TIME) + " — " +
                 s.getEndTime().toLocalTime().format(TIME);
 
         String innLine = s.isInnRequired() ? "\nℹ️ Для цієї локації потрібен ІПН." : "";
+
+        String employees = buildEmployeeBlock(s.getBookings());
 
         String text = """
                 📍 %s
@@ -43,6 +55,8 @@ public class SlotPostService {
                 📅 %s
                 🕒 %s
                 👥 %d/%d зайнято%s
+
+                %s
                 """.formatted(
                 s.getPlaceName(),
                 s.getCityName(),
@@ -50,7 +64,8 @@ public class SlotPostService {
                 time,
                 s.getBookedCount(),
                 s.getCapacity(),
-                innLine
+                innLine,
+                employees
         );
 
         InlineKeyboardButton join = new InlineKeyboardButton();
@@ -70,6 +85,8 @@ public class SlotPostService {
                 .messageId(sent.getMessageId())
                 .slotId(s.getId())
                 .postedAt(LocalDateTime.now())
+                .morningPost(morningPost)
+                .eveningPost(eveningPost)
                 .build();
 
         shiftMsgRepo.save(gsm);
@@ -97,5 +114,33 @@ public class SlotPostService {
         SendMessage sm = new SendMessage(chatId.toString(), text);
         sm.setReplyToMessageId(messageId);
         bot.execute(sm);
+    }
+
+    private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
+        List<SlotBookingDTO> safeBookings = Optional.ofNullable(bookings).orElse(Collections.emptyList());
+        if (safeBookings.isEmpty()) {
+            return "Наразі немає записів.";
+        }
+
+        String list = safeBookings.stream()
+                .map(this::formatBookingLine)
+                .collect(Collectors.joining("\n"));
+
+        return "Записані учасники:\n" + list;
+    }
+
+    private String formatBookingLine(SlotBookingDTO booking) {
+        String statusIcon = switch (Optional.ofNullable(booking.getStatus()).orElse(BookingStatusDTO.PENDING)) {
+            case CONFIRMED, COMPLETED -> "✅";
+            case CANCELLED -> "⏹️";
+            case PENDING -> "⏳";
+        };
+
+        String name = booking.getFullName();
+        if (name == null || name.isBlank()) {
+            name = booking.getUserId() != null ? "Користувач " + booking.getUserId() : "Невідомий";
+        }
+
+        return statusIcon + " " + name;
     }
 }
