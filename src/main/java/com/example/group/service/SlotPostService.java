@@ -35,23 +35,26 @@ public class SlotPostService {
         String time = s.getStartTime().toLocalTime().format(TIME) + " — " +
                 s.getEndTime().toLocalTime().format(TIME);
 
+        String innLine = s.isInnRequired() ? "\nℹ️ Для цієї локації потрібен ІПН." : "";
+
         String text = """
                 📍 %s
                 🏙️ %s
                 📅 %s
                 🕒 %s
-                👥 %d/%d зайнято
+                👥 %d/%d зайнято%s
                 """.formatted(
                 s.getPlaceName(),
                 s.getCityName(),
                 date,
                 time,
                 s.getBookedCount(),
-                s.getCapacity()
+                s.getCapacity(),
+                innLine
         );
 
         InlineKeyboardButton join = new InlineKeyboardButton();
-        join.setText("🟢 Записатись");
+        join.setText("🟢 Записатись через бота");
         join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
 
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();

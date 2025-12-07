@@ -15,8 +15,6 @@ public interface MainBotApiClient {
 
     SlotDTO getSlotById(Long slotId);
 
-    boolean userHasInn(Long telegramUserId);
-
     /** Создать запись на слот для пользователя */
     void createBooking(Long telegramUserId, Long slotId);
 }

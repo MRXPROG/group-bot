@@ -66,18 +66,6 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     }
 
     @Override
-    public boolean userHasInn(Long telegramUserId) {
-        try {
-            String url = baseUrl + "/api/group/users/" + telegramUserId + "/inn";
-            ResponseEntity<Boolean> resp = restTemplate.getForEntity(url, Boolean.class);
-            return Boolean.TRUE.equals(resp.getBody());
-        } catch (Exception e) {
-            log.error("Failed to check INN for user {}: {}", telegramUserId, e.getMessage());
-            return false;
-        }
-    }
-
-    @Override
     public void createBooking(Long telegramUserId, Long slotId) {
         try {
             String url = baseUrl + "/api/group/bookings";
