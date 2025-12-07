@@ -1,6 +1,7 @@
 package com.example.group.service;
 
 import com.example.group.config.BotConfig;
+import com.example.group.dto.SlotDTO;
 import com.example.group.service.util.MessageCleaner;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private final BotConfig config;
 
-    // --- Бизнес-сервисы ---
     private final MorningScheduler morningScheduler;
     private final ReminderScheduler reminderScheduler;
     private final FlowCleanerScheduler flowCleanerScheduler;
@@ -146,7 +146,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     // ============================================================
     @SneakyThrows
     public void sendReminder(Long chatId, Long messageId, SlotDTO slot, String prefix) {
-        slotPostService.sendReminder(this, chatId, messageId, slot, prefix);
+        slotPostService.sendReminder(this, chatId, Math.toIntExact(messageId), slot, prefix);
     }
 
     // ============================================================

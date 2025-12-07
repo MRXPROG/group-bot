@@ -81,7 +81,7 @@ public class ReminderScheduler {
         };
 
         try {
-            bot.sendReminder(msg.getChatId(), msg.getMessageId(), slot, prefix);
+            bot.sendReminder(msg.getChatId(), Long.valueOf(msg.getMessageId()), slot, prefix);
         } catch (Exception e) {
             log.error("Failed to send reminder for slot {}: {}", slot.getId(), e.getMessage());
         }
