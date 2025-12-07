@@ -34,32 +34,25 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         Long chatId = msg.getChatId();
         Long userId = msg.getFrom().getId();
 
-        if (slot.isInnRequired() && !mainApi.userHasInn(userId)) {
-            try {
-                Message warn = bot.execute(new SendMessage(
-                        chatId.toString(),
-                        "⚠️ Для цієї локації потрібен ІПН. Додайте ІПН у головному боті."
-                ));
-                cleaner.deleteLater(bot, chatId, warn.getMessageId(), 20);
-            } catch (Exception e) {
-                log.warn("Failed to send INN warning: {}", e.getMessage());
-            }
-            return;
-        }
-
         stateRepo.findByUserId(userId)
                 .ifPresent(state -> expireFlow(bot, state, null));
 
-        String text = """
+        String innLine = slot.isInnRequired()
+                ? "\nℹ️ Для цієї локації потрібен ІПН."
+                : "";
+
+        String text = ("""
                 Ви хочете записатись на зміну?
                 📍 %s
                 📅 %s
-                🕒 %s – %s
-                """.formatted(
+                🕒 %s – %s%s
+                """
+        ).formatted(
                 slot.getPlaceName(),
                 slot.getStartTime().toLocalDate(),
                 slot.getStartTime().toLocalTime(),
-                slot.getEndTime().toLocalTime()
+                slot.getEndTime().toLocalTime(),
+                innLine
         );
 
         SendMessage sm = new SendMessage(chatId.toString(), text);
