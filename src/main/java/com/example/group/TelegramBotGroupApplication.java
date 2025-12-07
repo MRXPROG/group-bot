@@ -2,11 +2,12 @@ package com.example.group;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
-@EnableJpaRepositories(basePackages = "com.example.notification.repository")
+@EnableScheduling
+@EnableJpaRepositories(basePackages = "com.example.group.repository")
 public class TelegramBotGroupApplication {
 
 	public static void main(String[] args) {
