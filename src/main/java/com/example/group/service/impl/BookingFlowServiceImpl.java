@@ -20,11 +20,14 @@ import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -71,7 +74,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         sm.setReplyMarkup(buildKeyboard(slot.getId(), userId));
 
         try {
-            Message botMsg = bot.execute(sm);
+            Message botMsg = sendWithReplyFallback(bot, sm, chatId, slot.getId());
 
             UserFlowState state = UserFlowState.builder()
                     .userId(userId)
@@ -126,7 +129,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                 );
                 done.setReplyToMessageId(resolveReplyMessageId(state));
 
-                Message m = bot.execute(done);
+                Message m = sendWithReplyFallback(bot, done, state.getChatId(), slotId);
                 cleaner.deleteLater(bot, state.getChatId(), m.getMessageId(), 15);
 
                 slotPostUpdater.refreshSlotPosts();
@@ -153,7 +156,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                         "⏰ Час вийшов. Створи заявку ще раз."
                 );
                 timeoutMsg.setReplyToMessageId(state.getUserMessageId());
-                Message m = bot.execute(timeoutMsg);
+                Message m = sendWithReplyFallback(bot, timeoutMsg, chatId, state.getSlotId());
                 cleaner.deleteLater(bot, chatId, m.getMessageId(), 15);
             } catch (Exception e) {
                 log.warn("Failed to send timeout message: {}", e.getMessage());
@@ -241,6 +244,44 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             );
         } catch (Exception ignored) {
         }
+    }
+
+    private Message sendWithReplyFallback(TelegramLongPollingBot bot,
+                                          SendMessage message,
+                                          Long chatId,
+                                          Long slotId) throws Exception {
+        Integer replyTo = message.getReplyToMessageId();
+        try {
+            return bot.execute(message);
+        } catch (TelegramApiException e) {
+            if (replyTo != null && isMessageMissing(e)) {
+                log.warn("BookingFlow: reply target {} is missing for slot {}, sending without reply", replyTo, slotId);
+                message.setReplyToMessageId(null);
+                cleanupMissingShiftMessage(chatId, slotId, replyTo);
+                return bot.execute(message);
+            }
+            throw e;
+        }
+    }
+
+    private void cleanupMissingShiftMessage(Long chatId, Long slotId, Integer replyTo) {
+        shiftMsgRepo.findByChatIdAndSlotId(chatId, slotId)
+                .filter(record -> Objects.equals(record.getMessageId(), replyTo))
+                .ifPresent(record -> {
+                    log.info("BookingFlow: removing stale shift message record {} for slot {}", replyTo, slotId);
+                    shiftMsgRepo.delete(record);
+                });
+    }
+
+    private boolean isMessageMissing(TelegramApiException e) {
+        Integer code = e.getErrorCode();
+        String response = Optional.ofNullable(e.getApiResponse()).orElse("");
+        String description = Optional.ofNullable(e.getMessage()).orElse("");
+        String payload = (response + " " + description).toLowerCase();
+        return Objects.equals(code, 400) && (payload.contains("message to reply not found") ||
+                payload.contains("message to edit not found") ||
+                payload.contains("message to delete not found") ||
+                payload.contains("message is not modified"));
     }
 
     private record NameParts(String firstName, String lastName) {}

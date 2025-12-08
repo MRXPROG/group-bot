@@ -117,7 +117,27 @@ public class SlotPostService {
 
         SendMessage sm = new SendMessage(chatId.toString(), text);
         sm.setReplyToMessageId(messageId);
-        bot.execute(sm);
+        try {
+            bot.execute(sm);
+        } catch (TelegramApiException e) {
+            if (isMessageMissing(e)) {
+                log.warn("SlotPostService: base message {} for slot {} is missing, sending reminder without reply", messageId, s.getId());
+                sm.setReplyToMessageId(null);
+                bot.execute(sm);
+                cleanupMissingMessage(chatId, s.getId(), messageId);
+                return;
+            }
+            throw e;
+        }
+    }
+
+    private void cleanupMissingMessage(Long chatId, Long slotId, Integer messageId) {
+        shiftMsgRepo.findByChatIdAndSlotId(chatId, slotId)
+                .filter(record -> Objects.equals(record.getMessageId(), messageId))
+                .ifPresent(record -> {
+                    log.info("SlotPostService: removing stale record for slot {} and message {}", slotId, messageId);
+                    shiftMsgRepo.delete(record);
+                });
     }
 
     private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
