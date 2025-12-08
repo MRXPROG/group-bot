@@ -5,5 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SlotReminderHistoryRepository extends JpaRepository<SlotReminderHistory, Long> {
 
-    boolean existsBySlotIdAndHoursBefore(Long slotId, Integer hoursBefore);
+    boolean existsBySlotIdAndHours(Long slotId, Integer hours);
 }
