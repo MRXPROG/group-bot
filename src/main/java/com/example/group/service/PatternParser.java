@@ -28,13 +28,17 @@ public class PatternParser {
             "(\\d{1,2})[./](\\d{1,2})(?:[./](\\d{2,4}))?"
     );
 
-    // Имя: минимум 2 слова, без цифр
+    // Имя: минимум 2 слова, начинаются с букв (чтобы избежать эмодзи и пунктуации)
+    private static final Pattern NAME_PATTERN = Pattern.compile(
+            "(?u)^[\\p{L}][\\p{L}\\p{M}'’-]*\\s+[\\p{L}][\\p{L}\\p{M}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{M}'’-]*)?$"
+    );
+
     private static boolean looksLikeName(String s) {
         if (s == null) return false;
         String trimmed = s.trim();
         if (trimmed.split("\\s+").length < 2) return false;
         if (trimmed.matches(".*\\d.*")) return false;
-        return true;
+        return NAME_PATTERN.matcher(trimmed).matches();
     }
 
     public Optional<ParsedShiftRequest> parse(String rawText) {
@@ -98,7 +102,7 @@ public class PatternParser {
             }
 
             // 4) ПРОВЕРКА НА ИМЯ
-            if (name == null && looksLikeName(line)) {
+            if (looksLikeName(line)) {
                 name = line;
                 continue;
             }
