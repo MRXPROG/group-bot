@@ -79,7 +79,7 @@ public class SlotPostService {
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
         kb.setKeyboard(List.of(List.of(join)));
 
-        var existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
+        var existingOpt = shiftMsgRepo.findFirstByChatIdAndSlotIdOrderByPostedAtDesc(chatId, s.getId());
         Integer oldMessageId = existingOpt.map(GroupShiftMessage::getMessageId).orElse(null);
 
         if (oldMessageId != null) {
