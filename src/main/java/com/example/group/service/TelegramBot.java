@@ -129,7 +129,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        bookingFlow.startFlowInGroup(this, msg, slotOpt.get());
+        bookingFlow.startFlowInGroup(this, msg, slotOpt.get(), req.getUserFullName());
     }
 
     @SneakyThrows

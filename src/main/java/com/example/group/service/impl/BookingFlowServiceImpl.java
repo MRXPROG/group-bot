@@ -18,6 +18,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -30,11 +31,10 @@ public class BookingFlowServiceImpl implements BookingFlowService {
     private final MessageCleaner cleaner;
 
     @Override
-    public void startFlowInGroup(TelegramLongPollingBot bot, Message msg, SlotDTO slot) {
+    public void startFlowInGroup(TelegramLongPollingBot bot, Message msg, SlotDTO slot, String userFullName) {
         Long chatId = msg.getChatId();
         Long userId = msg.getFrom().getId();
-        String firstName = msg.getFrom().getFirstName();
-        String lastName = msg.getFrom().getLastName();
+        NameParts names = resolveNames(msg, userFullName);
 
         stateRepo.findByUserId(userId)
                 .ifPresent(state -> expireFlow(bot, state, null));
@@ -67,8 +67,8 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             UserFlowState state = UserFlowState.builder()
                     .userId(userId)
                     .chatId(chatId)
-                    .firstName(firstName)
-                    .lastName(lastName)
+                    .firstName(names.firstName())
+                    .lastName(names.lastName())
                     .userMessageId(msg.getMessageId())
                     .botMessageId(botMsg.getMessageId())
                     .slotId(slot.getId())
@@ -156,6 +156,48 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         }
     }
 
+    private NameParts resolveNames(Message msg, String userFullName) {
+        String firstName = trimToNull(msg.getFrom().getFirstName());
+        String lastName = trimToNull(msg.getFrom().getLastName());
+
+        NameParts parsed = splitFullName(userFullName);
+
+        if (parsed.firstName() != null && parsed.lastName() != null) {
+            firstName = parsed.firstName();
+            lastName = parsed.lastName();
+        } else {
+            if (firstName == null) firstName = parsed.firstName();
+            if (lastName == null) lastName = parsed.lastName();
+        }
+
+        if (firstName == null) firstName = "Невідомо";
+        if (lastName == null) lastName = "Невідомо";
+
+        return new NameParts(firstName, lastName);
+    }
+
+    private NameParts splitFullName(String fullName) {
+        if (fullName == null) {
+            return new NameParts(null, null);
+        }
+
+        String[] parts = Arrays.stream(fullName.trim().split("\\s+")).filter(s -> !s.isBlank()).toArray(String[]::new);
+        if (parts.length < 2) {
+            return new NameParts(null, null);
+        }
+
+        String firstName = parts[0];
+        String lastName = String.join(" ", Arrays.copyOfRange(parts, 1, parts.length));
+
+        return new NameParts(firstName, lastName);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private InlineKeyboardMarkup buildKeyboard(Long slotId, Long userId) {
         InlineKeyboardButton yes = new InlineKeyboardButton();
         yes.setText("✅ Так");
@@ -180,4 +222,6 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         } catch (Exception ignored) {
         }
     }
+
+    private record NameParts(String firstName, String lastName) {}
 }
