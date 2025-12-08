@@ -1,9 +1,9 @@
 package com.example.group.service;
 
 import com.example.group.config.BotConfig;
-import com.example.group.dto.BookingStatusDTO;
 import com.example.group.dto.SlotBookingDTO;
 import com.example.group.dto.SlotDTO;
+import com.example.group.model.Booking;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
 import lombok.RequiredArgsConstructor;
@@ -130,16 +130,15 @@ public class SlotPostService {
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
-        String statusIcon = switch (Optional.ofNullable(booking.getStatus()).orElse(BookingStatus.PENDING)) {
+        String statusIcon = switch (Optional.ofNullable(booking.getStatus()).orElse(Booking.BookingStatus.PENDING)) {
             case CONFIRMED, COMPLETED -> "✅";
             case CANCELLED -> "⏹️";
             case PENDING -> "⏳";
         };
 
-        String name = booking.getFullName();
-        if (name == null || name.isBlank()) {
-            name = booking.getUserId() != null ? "Користувач " + booking.getUserId() : "Невідомий";
-        }
+        String name = (Optional.ofNullable(booking.getFirstName()).orElse("") + " " +
+                Optional.ofNullable(booking.getLastName()).orElse("")).trim();
+        if (name.isBlank()) name = "Невідомий";
 
         return statusIcon + " " + name;
     }
