@@ -22,6 +22,7 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMa
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
@@ -29,6 +30,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class BookingFlowServiceImpl implements BookingFlowService {
+
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private final UserFlowStateRepository stateRepo;
     private final MainBotApiClient mainApi;
@@ -46,20 +50,19 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                 .ifPresent(state -> expireFlow(bot, state, null));
 
         String innLine = slot.isInnRequired()
-                ? "\nℹ️ Для цієї локації потрібен ІПН."
+                ? " • ІПН обов'язковий"
                 : "";
 
         String text = ("""
-                Ви хочете записатись на зміну?
+                Записати тебе на зміну?
                 📍 %s
-                📅 %s
-                🕒 %s – %s%s
+                📅 %s • %s – %s%s
                 """
         ).formatted(
                 slot.getPlaceName(),
-                slot.getStart().toLocalDate(),
-                slot.getStart().toLocalTime(),
-                slot.getEnd().toLocalTime(),
+                slot.getStart().toLocalDate().format(DATE),
+                slot.getStart().toLocalTime().format(TIME),
+                slot.getEnd().toLocalTime().format(TIME),
                 innLine
         );
 
@@ -93,7 +96,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
         UserFlowState state = stateRepo.findByUserId(userId).orElse(null);
         if (state == null || !state.getSlotId().equals(slotId)) {
-            answer(bot, cbq, "⏳ Час підтвердження минув. Повторіть запис.");
+            answer(bot, cbq, "⏳ Час вийшов. Створи нову заявку.");
             return;
         }
 
@@ -119,7 +122,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
                 SendMessage done = new SendMessage(
                         state.getChatId().toString(),
-                        "✅ Ваша заявка в обробці. Ви можете перевірити статус у головному боті."
+                        "✅ Заявку прийнято. Статус дивись у головному боті"
                 );
                 done.setReplyToMessageId(resolveReplyMessageId(state));
 
@@ -129,10 +132,10 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                 slotPostUpdater.refreshSlotPosts();
             } catch (BookingConflictException e) {
                 log.warn("User {} already has booking for slot {}", userId, slotId);
-                answer(bot, cbq, "ℹ️ Ви вже записані на цю зміну.");
+                answer(bot, cbq, "ℹ️ Ти вже у цій зміні.");
             } catch (Exception e) {
                 log.error("Failed to create booking: {}", e.getMessage());
-                answer(bot, cbq, "❌ Помилка створення заявки. Спробуйте пізніше.");
+                answer(bot, cbq, "❌ Не вийшло створити заявку. Спробуй пізніше.");
             }
 
             expireFlow(bot, state, cbq);
@@ -147,7 +150,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             try {
                 SendMessage timeoutMsg = new SendMessage(
                         chatId.toString(),
-                        "⏰ Час на підтвердження минув. Повторіть запис пізніше."
+                        "⏰ Час вийшов. Створи заявку ще раз."
                 );
                 timeoutMsg.setReplyToMessageId(state.getUserMessageId());
                 Message m = bot.execute(timeoutMsg);
@@ -163,7 +166,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         stateRepo.delete(state);
 
         if (cbqOrNull != null) {
-            answer(bot, cbqOrNull, "✅ Операція завершена.");
+            answer(bot, cbqOrNull, "✅ Готово");
         }
     }
 

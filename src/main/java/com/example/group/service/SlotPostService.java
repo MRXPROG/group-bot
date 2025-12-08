@@ -47,7 +47,7 @@ public class SlotPostService {
         String time = s.getStart().toLocalTime().format(TIME) + " — " +
                 s.getEnd().toLocalTime().format(TIME);
 
-        String innLine = s.isInnRequired() ? "\nℹ️ Для цієї локації потрібен ІПН." : "";
+        String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
 
         int activeBookings = countActiveBookings(s);
         String employees = buildEmployeeBlock(s.getBookings());
@@ -55,8 +55,7 @@ public class SlotPostService {
         String text = """
                 📍 %s
                 🏙️ %s
-                📅 %s
-                🕒 %s
+                📅 %s • %s
                 👥 %d/%d зайнято%s
 
                 %s
@@ -69,10 +68,10 @@ public class SlotPostService {
                 s.getCapacity(),
                 innLine,
                 employees
-        );
+        ).trim();
 
         InlineKeyboardButton join = new InlineKeyboardButton();
-        join.setText("🟢 Записатись через бота");
+        join.setText("🟢 Записатись у боті");
         join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
 
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
@@ -113,8 +112,8 @@ public class SlotPostService {
 
         String text = prefix + "\n" +
                 "📍 " + s.getPlaceName() + "\n" +
-                "🕒 " + s.getStart().toLocalTime() + " – " + s.getEnd().toLocalTime() + "\n" +
-                "Залишилось місць: " + free;
+                "🕒 " + s.getStart().toLocalTime().format(TIME) + " – " + s.getEnd().toLocalTime().format(TIME) + "\n" +
+                "Вільних місць: " + free;
 
         SendMessage sm = new SendMessage(chatId.toString(), text);
         sm.setReplyToMessageId(messageId);
@@ -126,14 +125,14 @@ public class SlotPostService {
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
 
         if (activeBookings.isEmpty()) {
-            return "Наразі немає записів.";
+            return "Команда: поки нікого. Долучайся!";
         }
 
         String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
 
-        return "Записані учасники:\n" + list;
+        return "Команда:\n" + list;
     }
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {

@@ -24,7 +24,7 @@ public class PinnedMessageService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale.forLanguageTag("uk"));
     private static final int LEADERBOARD_SIZE = 10;
-    private static final String VACANT_PLACE = "Місце вільне, можеш бути тут ти";
+    private static final String VACANT_PLACE = "Порожньо — місце для тебе";
 
     private final BotSettingsService botSettingsService;
 
@@ -102,11 +102,11 @@ public class PinnedMessageService {
         String body = buildLines(sorted);
 
         return """
-                🏆 Топ виконавців змін (за весь час)
+                🏆 Топ-10 активних (за змінами)
 
                 %s
 
-                Оновлено: %s
+                Оновлено • %s
                 """.formatted(body, LocalDateTime.now().format(TS)).trim();
     }
 
