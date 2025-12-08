@@ -24,7 +24,7 @@ public class PinnedMessageService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale.forLanguageTag("uk"));
     private static final int LEADERBOARD_SIZE = 10;
-    private static final String VACANT_PLACE = "Порожньо — місце для тебе";
+    private static final String VACANT_PLACE = "Порожньо - місце для тебе";
 
     private final BotSettingsService botSettingsService;
 
@@ -127,7 +127,7 @@ public class PinnedMessageService {
                 sb.append(idx + 1)
                         .append(". ")
                         .append(fullName)
-                        .append(" — ")
+                        .append(" - ")
                         .append(row.count())
                         .append(" змін");
             } else {
