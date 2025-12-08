@@ -6,6 +6,7 @@ import com.example.group.dto.SlotDTO;
 import com.example.group.model.Booking;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
+import com.example.group.service.util.MessageCleaner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class SlotPostService {
 
     private final GroupShiftMessageRepository shiftMsgRepo;
     private final BotConfig config;
+    private final MessageCleaner cleaner;
 
     private static final Locale UA = Locale.forLanguageTag("uk");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy", UA);
@@ -80,16 +82,25 @@ public class SlotPostService {
 
         Message sent = bot.execute(sm);
 
-        GroupShiftMessage gsm = GroupShiftMessage.builder()
-                .chatId(chatId)
-                .messageId(sent.getMessageId())
-                .slotId(s.getId())
-                .postedAt(LocalDateTime.now())
-                .morningPost(morningPost)
-                .eveningPost(eveningPost)
-                .build();
+        var existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
+
+        Integer oldMessageId = existingOpt.map(GroupShiftMessage::getMessageId).orElse(null);
+
+        GroupShiftMessage gsm = existingOpt
+                .map(existing -> updateExisting(existing, sent.getMessageId(), morningPost, eveningPost))
+                .orElseGet(() -> GroupShiftMessage.builder()
+                        .chatId(chatId)
+                        .messageId(sent.getMessageId())
+                        .slotId(s.getId())
+                        .postedAt(LocalDateTime.now())
+                        .morningPost(morningPost)
+                        .eveningPost(eveningPost)
+                        .build()
+                );
 
         shiftMsgRepo.save(gsm);
+
+        cleanupOldPost(bot, chatId, oldMessageId, sent.getMessageId());
 
         return sent;
     }
@@ -141,5 +152,27 @@ public class SlotPostService {
         if (name.isBlank()) name = "Невідомий";
 
         return statusIcon + " " + name;
+    }
+
+    private GroupShiftMessage updateExisting(GroupShiftMessage existing,
+                                             Integer newMessageId,
+                                             boolean morningPost,
+                                             boolean eveningPost) {
+        existing.setMessageId(newMessageId);
+        existing.setPostedAt(LocalDateTime.now());
+        existing.setMorningPost(morningPost);
+        existing.setEveningPost(eveningPost);
+        return existing;
+    }
+
+    private void cleanupOldPost(TelegramLongPollingBot bot,
+                                Long chatId,
+                                Integer oldMessageId,
+                                Integer newMessageId) {
+        if (oldMessageId == null || Objects.equals(oldMessageId, newMessageId)) {
+            return;
+        }
+
+        cleaner.deleteNow(bot, chatId, oldMessageId);
     }
 }

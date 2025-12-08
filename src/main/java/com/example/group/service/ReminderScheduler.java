@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -41,6 +42,17 @@ public class ReminderScheduler {
 
         List<GroupShiftMessage> messages = shiftMsgRepo.findAll();
         if (messages.isEmpty()) return;
+
+        // У однієї вакансії може бути кілька постів. Беремо найсвіжіший для нагадувань.
+        messages = messages.stream()
+                .collect(Collectors.toMap(
+                        msg -> msg.getChatId() + ":" + msg.getSlotId(),
+                        msg -> msg,
+                        this::pickNewest
+                ))
+                .values()
+                .stream()
+                .toList();
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -85,5 +97,11 @@ public class ReminderScheduler {
         } catch (Exception e) {
             log.error("Failed to send reminder for slot {}: {}", slot.getId(), e.getMessage());
         }
+    }
+
+    private GroupShiftMessage pickNewest(GroupShiftMessage a, GroupShiftMessage b) {
+        if (a.getPostedAt() == null) return b;
+        if (b.getPostedAt() == null) return a;
+        return a.getPostedAt().isAfter(b.getPostedAt()) ? a : b;
     }
 }

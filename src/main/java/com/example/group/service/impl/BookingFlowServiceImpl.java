@@ -33,6 +33,8 @@ public class BookingFlowServiceImpl implements BookingFlowService {
     public void startFlowInGroup(TelegramLongPollingBot bot, Message msg, SlotDTO slot) {
         Long chatId = msg.getChatId();
         Long userId = msg.getFrom().getId();
+        String firstName = msg.getFrom().getFirstName();
+        String lastName = msg.getFrom().getLastName();
 
         stateRepo.findByUserId(userId)
                 .ifPresent(state -> expireFlow(bot, state, null));
@@ -65,6 +67,8 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             UserFlowState state = UserFlowState.builder()
                     .userId(userId)
                     .chatId(chatId)
+                    .firstName(firstName)
+                    .lastName(lastName)
                     .userMessageId(msg.getMessageId())
                     .botMessageId(botMsg.getMessageId())
                     .slotId(slot.getId())
@@ -94,7 +98,18 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
         if ("YES".equalsIgnoreCase(decision)) {
             try {
-                mainApi.createBooking(userId, slotId);
+                String firstName = state.getFirstName();
+                String lastName = state.getLastName();
+
+                // fallback in case user changed name during the flow or we didn't capture it
+                if (firstName == null && cbq.getFrom() != null) {
+                    firstName = cbq.getFrom().getFirstName();
+                }
+                if (lastName == null && cbq.getFrom() != null) {
+                    lastName = cbq.getFrom().getLastName();
+                }
+
+                mainApi.createBooking(userId, slotId, firstName, lastName);
 
                 SendMessage done = new SendMessage(
                         state.getChatId().toString(),
