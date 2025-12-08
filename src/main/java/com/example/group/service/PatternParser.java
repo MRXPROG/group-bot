@@ -18,9 +18,9 @@ import java.util.regex.Pattern;
 @Component
 public class PatternParser {
 
-    // Обнаружение времени: "18-23", "09:00 — 17:00", "з 8 до 12"
+    // Обнаружение времени: "18-23", "09:00 — 17:00", "з 8 до 12", "з 18:00 до 24"
     private static final Pattern TIME_PATTERN = Pattern.compile(
-            "(?iu)(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–])\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
+            "(?iu)(?:[ззcс]\s*)?(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–])\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
     );
 
     // Обнаружение даты: 9.12, 09/12, 9.12.2025
@@ -69,6 +69,11 @@ public class PatternParser {
                 var range = parseTime(tm);
                 start = range.start();
                 end = range.end();
+
+                String leftover = extractRemainder(line, List.of(dt, tm));
+                if (!leftover.isBlank()) {
+                    placeParts.add(leftover);
+                }
                 continue;
             }
 
@@ -145,6 +150,29 @@ public class PatternParser {
         int em = m.group(4) == null ? 0 : Integer.parseInt(m.group(4));
 
         return new TimeRange(LocalTime.of(sh, sm), LocalTime.of(eh, em));
+    }
+
+    private String extractRemainder(String line, List<Matcher> matchers) {
+        if (line == null || line.isBlank()) return "";
+
+        boolean[] masked = new boolean[line.length()];
+        for (Matcher matcher : matchers) {
+            for (int i = matcher.start(); i < matcher.end() && i < masked.length; i++) {
+                masked[i] = true;
+            }
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < line.length(); i++) {
+            if (!masked[i]) {
+                sb.append(line.charAt(i));
+            }
+        }
+
+        return sb.toString()
+                .replaceAll("[.,;:—–-]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private record TimeRange(LocalTime start, LocalTime end) {}
