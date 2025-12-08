@@ -20,7 +20,7 @@ public class PatternParser {
 
     // Обнаружение времени: "18-23", "09:00 — 17:00", "з 8 до 12", "з 18:00 до 24"
     private static final Pattern TIME_PATTERN = Pattern.compile(
-            "(?iu)(?:[ззcс]\s*)?(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–])\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
+            "(?iu)(?:[ззcс]\s*)?(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–—])\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
     );
 
     // Обнаружение даты: 9.12, 09/12, 9.12.2025
@@ -37,12 +37,23 @@ public class PatternParser {
             "(?u)([\\p{Lu}\\p{Lt}][\\p{L}\\p{M}'’-]*\\s+[\\p{Lu}\\p{Lt}][\\p{L}\\p{M}'’-]*(?:\\s+[\\p{L}\\p{M}'’-]+)?)"
     );
 
+    private static final Pattern WEEKDAY_NOTE_PATTERN = Pattern.compile(
+            "(?iu)^\\(?\\s*(понеділок|вівторок|середа|четвер|п['’]ятниця|субота|неділя|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)\\s*\\)?$"
+    );
+
     private static boolean looksLikeName(String s) {
         if (s == null) return false;
         String trimmed = s.trim();
         if (trimmed.split("\\s+").length < 2) return false;
         if (trimmed.matches(".*\\d.*")) return false;
         return NAME_PATTERN.matcher(trimmed).matches();
+    }
+
+    private String normalizeLine(String line) {
+        if (line == null) return "";
+
+        String withoutEmoji = line.replaceAll("[\\p{So}\\p{Sk}\\p{Sc}\\p{Sm}]+", " ");
+        return withoutEmoji.replaceAll("\\s+", " ").trim();
     }
 
     private static String extractNameFromText(String text) {
@@ -68,7 +79,7 @@ public class PatternParser {
         }
 
         String[] lines = Arrays.stream(rawText.split("\\r?\\n"))
-                .map(String::trim)
+                .map(this::normalizeLine)
                 .filter(s -> !s.isBlank())
                 .toArray(String[]::new);
 
@@ -237,7 +248,7 @@ public class PatternParser {
             }
         }
 
-        if (!cleaned.isBlank()) {
+        if (!cleaned.isBlank() && !isWeekdayNote(cleaned)) {
             placeParts.add(cleaned);
         }
 
@@ -245,4 +256,8 @@ public class PatternParser {
     }
 
     private record TimeRange(LocalTime start, LocalTime end) {}
+
+    private boolean isWeekdayNote(String text) {
+        return WEEKDAY_NOTE_PATTERN.matcher(text.trim()).matches();
+    }
 }

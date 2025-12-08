@@ -46,7 +46,7 @@ public class SlotPostService {
                                                 boolean eveningPost) throws Exception {
         String date = s.getStart().toLocalDate().format(DATE);
         String day = s.getStart().toLocalDate().format(DAY_OF_WEEK);
-        String time = s.getStart().toLocalTime().format(TIME) + " — " +
+        String time = s.getStart().toLocalTime().format(TIME) + " - " +
                 s.getEnd().toLocalTime().format(TIME);
 
         String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
@@ -55,7 +55,7 @@ public class SlotPostService {
         String employees = buildEmployeeBlock(s.getBookings());
 
         String text = """
-                🟢 Нова зміна — запис відкрито!
+                🟢 Нова зміна - запис відкрито!
 
                 📍 %s
                 🏙️ %s
@@ -117,7 +117,7 @@ public class SlotPostService {
 
         String text = prefix + "\n\n" +
                 "📍 " + s.getPlaceName() + "\n" +
-                "🕒 " + s.getStart().toLocalTime().format(TIME) + " – " + s.getEnd().toLocalTime().format(TIME) + "\n" +
+                "🕒 " + s.getStart().toLocalTime().format(TIME) + " - " + s.getEnd().toLocalTime().format(TIME) + "\n" +
                 "Вільних місць: " + free;
 
         SendMessage sm = new SendMessage(chatId.toString(), text);

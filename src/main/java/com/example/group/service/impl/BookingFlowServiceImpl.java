@@ -48,6 +48,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         Long chatId = msg.getChatId();
         Long userId = msg.getFrom().getId();
         NameParts names = resolveNames(msg, userFullName);
+        String confirmedName = (names.firstName() + " " + names.lastName()).trim();
 
         stateRepo.findByUserId(userId)
                 .ifPresent(state -> expireFlow(bot, state, null));
@@ -59,14 +60,16 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         String text = ("""
                 Записати тебе на зміну?
                 📍 %s
-                📅 %s • %s – %s%s
+                📅 %s • %s - %s%s
+                👤 Ім'я в заявці: %s
                 """
         ).formatted(
                 slot.getPlaceName(),
                 slot.getStart().toLocalDate().format(DATE),
                 slot.getStart().toLocalTime().format(TIME),
                 slot.getEnd().toLocalTime().format(TIME),
-                innLine
+                innLine,
+                confirmedName
         );
 
         SendMessage sm = new SendMessage(chatId.toString(), text);
