@@ -22,4 +22,6 @@ public class BotSettings {
     private Long id;
 
     private Long groupChatId;
+
+    private Integer pinnedMessageId;
 }

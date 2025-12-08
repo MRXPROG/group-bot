@@ -25,12 +25,14 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final EveningScheduler eveningScheduler;
     private final ReminderScheduler reminderScheduler;
     private final FlowCleanerScheduler flowCleanerScheduler;
+    private final LeaderboardScheduler leaderboardScheduler;
     private final PatternParser patternParser;
     private final SlotService slotService;
     private final BookingFlowService bookingFlow;
     private final MessageCleaner cleaner;
     private final SlotPostService slotPostService;
     private final BotSettingsService settingsService;
+    private final LeaderboardUpdater leaderboardUpdater;
 
     @Override
     public String getBotUsername() {
@@ -50,6 +52,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         eveningScheduler.start(this);
         reminderScheduler.start(this);
         flowCleanerScheduler.start(this);
+        leaderboardScheduler.start(this);
+
+        leaderboardUpdater.updatePinnedLeaderboard(this);
     }
 
     @Override
