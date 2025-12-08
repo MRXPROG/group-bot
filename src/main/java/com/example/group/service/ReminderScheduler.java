@@ -65,8 +65,7 @@ public class ReminderScheduler {
             for (Integer mark : REMINDER_HOURS) {
                 if (hoursUntil == mark) {
 
-                    boolean alreadySent =
-                            reminderRepo.existsBySlotIdAndHoursBefore(slot.getId(), mark);
+                    boolean alreadySent = reminderRepo.existsBySlotIdAndHours(slot.getId(), mark);
 
                     if (!alreadySent) {
                         sendReminder(msg, slot, mark);
