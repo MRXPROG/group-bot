@@ -12,11 +12,15 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import com.example.group.service.exception.BookingConflictException;
 
 @Slf4j
 @Service
@@ -77,6 +81,15 @@ public class MainBotApiClientImpl implements MainBotApiClient {
             HttpEntity<BookingCreateRequest> entity = new HttpEntity<>(body, headers);
 
             restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
+        } catch (HttpStatusCodeException e) {
+            log.error("Failed to create booking for user={}, slot={}: {} : {}", telegramUserId, slotId,
+                    e.getStatusCode(), e.getResponseBodyAsString());
+
+            if (HttpStatus.CONFLICT.equals(e.getStatusCode())) {
+                throw new BookingConflictException("Booking already exists for slot");
+            }
+
+            throw new RuntimeException("Booking creation failed with status " + e.getStatusCode(), e);
         } catch (Exception e) {
             log.error("Failed to create booking for user={}, slot={}: {}",
                     telegramUserId, slotId, e.getMessage());

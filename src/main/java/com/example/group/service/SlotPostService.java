@@ -129,11 +129,19 @@ public class SlotPostService {
 
     private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
         List<SlotBookingDTO> safeBookings = Optional.ofNullable(bookings).orElse(Collections.emptyList());
-        if (safeBookings.isEmpty()) {
+        List<SlotBookingDTO> activeBookings = safeBookings.stream()
+                .filter(b -> {
+                    Booking.BookingStatus status = Optional.ofNullable(b.getStatus())
+                            .orElse(Booking.BookingStatus.PENDING);
+                    return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
+                })
+                .toList();
+
+        if (activeBookings.isEmpty()) {
             return "Наразі немає записів.";
         }
 
-        String list = safeBookings.stream()
+        String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
 
@@ -141,10 +149,11 @@ public class SlotPostService {
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
-        String statusIcon = switch (Optional.ofNullable(booking.getStatus()).orElse(Booking.BookingStatus.PENDING)) {
-            case CONFIRMED, COMPLETED -> "✅";
-            case CANCELLED -> "⏹️";
+        Booking.BookingStatus status = Optional.ofNullable(booking.getStatus()).orElse(Booking.BookingStatus.PENDING);
+        String statusIcon = switch (status) {
+            case CONFIRMED -> "✅";
             case PENDING -> "⏳";
+            default -> "⏳";
         };
 
         String name = (Optional.ofNullable(booking.getFirstName()).orElse("") + " " +

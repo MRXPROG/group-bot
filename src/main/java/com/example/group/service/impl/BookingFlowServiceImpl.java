@@ -6,6 +6,7 @@ import com.example.group.model.UserFlowState;
 import com.example.group.repository.UserFlowStateRepository;
 import com.example.group.service.BookingFlowService;
 import com.example.group.service.util.MessageCleaner;
+import com.example.group.service.exception.BookingConflictException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -119,6 +120,9 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
                 Message m = bot.execute(done);
                 cleaner.deleteLater(bot, state.getChatId(), m.getMessageId(), 15);
+            } catch (BookingConflictException e) {
+                log.warn("User {} already has booking for slot {}", userId, slotId);
+                answer(bot, cbq, "ℹ️ Ви вже записані на цю зміну.");
             } catch (Exception e) {
                 log.error("Failed to create booking: {}", e.getMessage());
                 answer(bot, cbq, "❌ Помилка створення заявки. Спробуйте пізніше.");
