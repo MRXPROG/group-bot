@@ -35,7 +35,7 @@ public class EveningScheduler {
         }
 
         Long groupChatId = settingsService.getGroupChatId();
-        if (groupChatId == null || groupChatId <= 0) {
+        if (groupChatId == null || groupChatId == 0) {
             log.warn("EveningScheduler: group chat is not bound yet");
             return;
         }

@@ -30,7 +30,7 @@ public class MorningScheduler {
             return;
         }
         Long groupChatId = settingsService.getGroupChatId();
-        if (groupChatId == null || groupChatId <= 0) {
+        if (groupChatId == null || groupChatId == 0) {
             log.warn("MorningScheduler: group chat is not bound yet");
             return;
         }
