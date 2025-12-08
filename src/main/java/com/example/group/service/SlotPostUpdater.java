@@ -81,7 +81,7 @@ public class SlotPostUpdater {
             EditMessageText edit = EditMessageText.builder()
                     .chatId(chatId.toString())
                     .messageId(messageId)
-                    .text("ℹ️ Зміна завершена. Пост переведено в архівний режим.")
+                    .text("ℹ️ Зміна завершена. Пост архівовано.")
                     .build();
             bot.execute(edit);
         } catch (TelegramApiException e) {

@@ -99,7 +99,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (!isGroup) {
             execute(new SendMessage(
                     msg.getChatId().toString(),
-                    "Команда доступна лише в групі"
+                    "Команда працює тільки в групі"
             ));
             return;
         }
@@ -109,7 +109,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         execute(new SendMessage(
                 chatId.toString(),
-                "✅ Бот доданий у групу та готовий працювати тут"
+                "✅ Прив'язано. Бот працює тут"
         ));
     }
 
@@ -130,7 +130,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (slotOpt.isEmpty()) {
             Message reply = execute(new SendMessage(
                     chatId.toString(),
-                    "⚠️ Не знайдено відповідної зміни. Перевірте дані."
+                    "⚠️ Не знайшов такої зміни. Перевір, чи все ввів правильно"
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
             return;
@@ -146,13 +146,13 @@ public class TelegramBot extends TelegramLongPollingBot {
         Long userId = cbq.getFrom().getId();
 
         if (!data.startsWith("CFM:")) {
-            answer(cbq.getId(), "Невідома команда");
+            answer(cbq.getId(), "Невідома дія");
             return;
         }
 
         String[] p = data.split(":");
         if (p.length != 4) {
-            answer(cbq.getId(), "Невірна команда");
+            answer(cbq.getId(), "Хибна команда");
             return;
         }
 
@@ -161,7 +161,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         String decision = p[3];
 
         if (!userId.equals(initiatorId)) {
-            answer(cbq.getId(), "❌ Ця кнопка не для вас.");
+            answer(cbq.getId(), "❌ Ця кнопка не для тебе");
             return;
         }
 
