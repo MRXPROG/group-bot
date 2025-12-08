@@ -150,14 +150,14 @@ public class SlotPostService {
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
 
         if (activeBookings.isEmpty()) {
-            return "Команда: " + wrapInSpoiler("поки нікого. Долучайся!");
+            return "Команда:\n" + wrapInCollapsedComment("поки нікого. Долучайся!");
         }
 
         String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
 
-        return "Команда: " + wrapInSpoiler("\n" + list);
+        return "Команда:\n" + wrapInCollapsedComment("\n" + list);
     }
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {
@@ -201,8 +201,8 @@ public class SlotPostService {
                 .replace(">", "&gt;");
     }
 
-    private String wrapInSpoiler(String text) {
-        return "<tg-spoiler>" + text + "</tg-spoiler>";
+    private String wrapInCollapsedComment(String text) {
+        return "<blockquote expandable>" + text + "</blockquote>";
     }
 
     private Message sendAndStore(TelegramLongPollingBot bot,
