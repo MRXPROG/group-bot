@@ -32,6 +32,7 @@ public class SlotPostService {
 
     private static final Locale UA = Locale.forLanguageTag("uk");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy", UA);
+    private static final DateTimeFormatter DAY_OF_WEEK = DateTimeFormatter.ofPattern("EEEE", UA);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", UA);
 
     public Message publishSlotPost(TelegramLongPollingBot bot, Long chatId, SlotDTO s) throws Exception {
@@ -44,6 +45,7 @@ public class SlotPostService {
                                                 boolean morningPost,
                                                 boolean eveningPost) throws Exception {
         String date = s.getStart().toLocalDate().format(DATE);
+        String day = s.getStart().toLocalDate().format(DAY_OF_WEEK);
         String time = s.getStart().toLocalTime().format(TIME) + " — " +
                 s.getEnd().toLocalTime().format(TIME);
 
@@ -53,9 +55,11 @@ public class SlotPostService {
         String employees = buildEmployeeBlock(s.getBookings());
 
         String text = """
+                🟢 Нова зміна — запис відкрито!
+
                 📍 %s
                 🏙️ %s
-                📅 %s • %s
+                📅 %s (%s) • %s
                 👥 %d/%d зайнято%s
 
                 %s
@@ -63,6 +67,7 @@ public class SlotPostService {
                 s.getPlaceName(),
                 s.getCityName(),
                 date,
+                day,
                 time,
                 activeBookings,
                 s.getCapacity(),
@@ -110,7 +115,7 @@ public class SlotPostService {
             return;
         }
 
-        String text = prefix + "\n" +
+        String text = prefix + "\n\n" +
                 "📍 " + s.getPlaceName() + "\n" +
                 "🕒 " + s.getStart().toLocalTime().format(TIME) + " – " + s.getEnd().toLocalTime().format(TIME) + "\n" +
                 "Вільних місць: " + free;
