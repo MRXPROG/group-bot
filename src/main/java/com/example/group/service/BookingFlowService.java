@@ -9,7 +9,7 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 
 public interface BookingFlowService {
 
-    void startFlowInGroup(TelegramLongPollingBot bot, Message msg, SlotDTO slot);
+    void startFlowInGroup(TelegramLongPollingBot bot, Message msg, SlotDTO slot, String userFullName);
 
     void handleDecision(TelegramLongPollingBot bot, CallbackQuery cbq, Long slotId, String decision);
 
