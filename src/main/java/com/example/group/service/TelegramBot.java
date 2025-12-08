@@ -107,6 +107,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         Long chatId = chat.getId();
         settingsService.bindGroupChat(chatId);
 
+        leaderboardUpdater.updatePinnedLeaderboard(this);
+
         execute(new SendMessage(
                 chatId.toString(),
                 "✅ Прив'язано. Бот працює тут"
