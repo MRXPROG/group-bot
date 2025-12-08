@@ -10,7 +10,8 @@ import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageTe
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
-import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
@@ -23,8 +24,7 @@ import java.util.Optional;
 public class PinnedMessageService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale.forLanguageTag("uk"));
-    private static final int LEADERBOARD_SIZE = 10;
-    private static final String VACANT_PLACE = "Порожньо - місце для тебе";
+    private static final ZoneId KYIV_ZONE = ZoneId.of("Europe/Kiev");
 
     private final BotSettingsService botSettingsService;
 
@@ -51,6 +51,7 @@ public class PinnedMessageService {
                     .chatId(chatId.toString())
                     .messageId(pinnedMessageId)
                     .text(text)
+                    .parseMode("HTML")
                     .build();
             bot.execute(edit);
             ensurePinned(bot, chatId, pinnedMessageId);
@@ -64,7 +65,11 @@ public class PinnedMessageService {
 
     private void createAndPin(TelegramLongPollingBot bot, Long chatId, String text) {
         try {
-            Message msg = bot.execute(new SendMessage(chatId.toString(), text));
+            Message msg = bot.execute(SendMessage.builder()
+                    .chatId(chatId.toString())
+                    .text(text)
+                    .parseMode("HTML")
+                    .build());
             botSettingsService.savePinnedMessageId(msg.getMessageId());
             ensurePinned(bot, chatId, msg.getMessageId());
         } catch (TelegramApiRequestException e) {
@@ -96,47 +101,105 @@ public class PinnedMessageService {
                 .stream()
                 .filter(row -> row != null && row.count() > 0)
                 .sorted(Comparator.comparingInt(UserShiftCount::count).reversed())
-                .limit(LEADERBOARD_SIZE)
                 .toList();
 
-        String body = buildLines(sorted);
-
-        return """
-                🏆 Топ-10 активних (за змінами)
-
-                %s
-
-                Оновлено • %s
-                """.formatted(body, LocalDateTime.now().format(TS)).trim();
+        return buildFormattedMessage(sorted);
     }
 
-    private String buildLines(List<UserShiftCount> sorted) {
-        StringBuilder sb = new StringBuilder();
+    private String buildFormattedMessage(List<UserShiftCount> sorted) {
+        if (sorted.isEmpty()) {
+            return """
+                    🏆 <u><b>Рейтинг активності учасників</b></u>
 
-        for (int idx = 0; idx < LEADERBOARD_SIZE; idx++) {
-            if (idx > 0) {
-                sb.append("\n");
-            }
+                    Будь першим! 💪
 
-            if (idx < sorted.size()) {
-                UserShiftCount row = sorted.get(idx);
-                String fullName = (Optional.ofNullable(row.firstName()).orElse("") + " " + Optional.ofNullable(row.lastName()).orElse("")).trim();
-                if (fullName.isBlank()) {
-                    fullName = "Невідомий";
-                }
-                sb.append(idx + 1)
-                        .append(". ")
-                        .append(fullName)
-                        .append(" - ")
-                        .append(row.count())
-                        .append(" змін");
-            } else {
-                sb.append(idx + 1)
-                        .append(". ")
-                        .append(VACANT_PLACE);
-            }
+                    🕒 Оновлено: %s
+                    """.formatted(formattedNow()).trim();
         }
 
-        return sb.toString();
+        StringBuilder sb = new StringBuilder();
+        sb.append("🏆 <u><b>Рейтинг активності учасників</b></u>\n\n");
+
+        appendTopThree(sorted, sb);
+
+        int upperBound = Math.min(sorted.size(), 10);
+        if (upperBound > 3) {
+            sb.append("\n<b>4–10 місця</b>\n");
+            appendPlaces(sorted, sb, 3, upperBound);
+        }
+
+        if (sorted.size() > 10) {
+            sb.append("\n<details>\n<summary>📘 Показати повний рейтинг (11+ місця)</summary>\n\n");
+            appendPlaces(sorted, sb, 10, sorted.size());
+            sb.append("\n</details>");
+        }
+
+        sb.append("\n\n🕒 Оновлено: ").append(formattedNow());
+
+        return sb.toString().trim();
+    }
+
+    private void appendTopThree(List<UserShiftCount> sorted, StringBuilder sb) {
+        String[] medals = {"🥇", "🥈", "🥉"};
+        int top = Math.min(sorted.size(), 3);
+
+        for (int idx = 0; idx < top; idx++) {
+            UserShiftCount row = sorted.get(idx);
+            sb.append(medals[idx])
+                    .append(" ")
+                    .append(idx + 1)
+                    .append(". ")
+                    .append(formatName(row))
+                    .append(" — ")
+                    .append(row.count())
+                    .append(" змін");
+            if (idx < top - 1) {
+                sb.append("\n");
+            }
+        }
+    }
+
+    private void appendPlaces(List<UserShiftCount> sorted, StringBuilder sb, int fromInclusive, int toExclusive) {
+        String[] placeIcons = {"4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
+        for (int idx = fromInclusive; idx < toExclusive; idx++) {
+            UserShiftCount row = sorted.get(idx);
+            String prefix;
+            if (idx < 10) {
+                prefix = placeIcons[idx - 3];
+            } else {
+                prefix = String.valueOf(idx + 1);
+            }
+
+            sb.append(prefix)
+                    .append(" ")
+                    .append(formatName(row))
+                    .append(" — ")
+                    .append(row.count());
+
+            if (idx < toExclusive - 1) {
+                sb.append("\n");
+            }
+        }
+    }
+
+    private String formatName(UserShiftCount row) {
+        String fullName = (Optional.ofNullable(row.firstName()).orElse("") + " " + Optional.ofNullable(row.lastName()).orElse("")).trim();
+        if (fullName.isBlank()) {
+            fullName = "Невідомий";
+        }
+        return escapeHtml(fullName);
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private String formattedNow() {
+        return ZonedDateTime.now(KYIV_ZONE).format(TS);
     }
 }
