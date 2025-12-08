@@ -33,12 +33,32 @@ public class PatternParser {
             "(?u)^[\\p{L}][\\p{L}\\p{M}'’-]*\\s+[\\p{L}][\\p{L}\\p{M}'’-]*(?:\\s+[\\p{L}][\\p{L}\\p{M}'’-]*)?$"
     );
 
+    private static final Pattern NAME_INLINE_PATTERN = Pattern.compile(
+            "(?u)([\\p{Lu}\\p{Lt}][\\p{L}\\p{M}'’-]*\\s+[\\p{Lu}\\p{Lt}][\\p{L}\\p{M}'’-]*(?:\\s+[\\p{L}\\p{M}'’-]+)?)"
+    );
+
     private static boolean looksLikeName(String s) {
         if (s == null) return false;
         String trimmed = s.trim();
         if (trimmed.split("\\s+").length < 2) return false;
         if (trimmed.matches(".*\\d.*")) return false;
         return NAME_PATTERN.matcher(trimmed).matches();
+    }
+
+    private static String extractNameFromText(String text) {
+        if (text == null || text.isBlank()) return null;
+        var matcher = NAME_INLINE_PATTERN.matcher(text);
+        String best = null;
+        while (matcher.find()) {
+            String candidate = matcher.group(1).trim();
+            if (candidate.split("\\s+").length < 2) continue;
+            if (candidate.matches(".*\\d.*")) continue;
+            // выбираем самую длинную комбинацию слов
+            if (best == null || candidate.length() > best.length()) {
+                best = candidate;
+            }
+        }
+        return best;
     }
 
     public Optional<ParsedShiftRequest> parse(String rawText) {
@@ -75,9 +95,7 @@ public class PatternParser {
                 end = range.end();
 
                 String leftover = extractRemainder(line, List.of(dt, tm));
-                if (!leftover.isBlank()) {
-                    placeParts.add(leftover);
-                }
+                name = removeNameAndCapture(leftover, placeParts, name);
                 continue;
             }
 
@@ -86,6 +104,8 @@ public class PatternParser {
                 Matcher m = DATE_PATTERN.matcher(line);
                 if (m.find()) {
                     date = parseDate(m);
+                    String leftover = extractRemainder(line, List.of(m));
+                    name = removeNameAndCapture(leftover, placeParts, name);
                     continue;
                 }
             }
@@ -97,6 +117,8 @@ public class PatternParser {
                     var range = parseTime(m);
                     start = range.start();
                     end = range.end();
+                    String leftover = extractRemainder(line, List.of(m));
+                    name = removeNameAndCapture(leftover, placeParts, name);
                     continue;
                 }
             }
@@ -107,8 +129,12 @@ public class PatternParser {
                 continue;
             }
 
-            // 5) Остальное → локация
-            placeParts.add(line);
+            name = removeNameAndCapture(line, placeParts, name);
+            continue;
+        }
+
+        if (name == null) {
+            name = extractNameFromText(String.join(" ", lines));
         }
 
         if (date == null || start == null || end == null || name == null) {
@@ -153,7 +179,18 @@ public class PatternParser {
         int eh = Integer.parseInt(m.group(3));
         int em = m.group(4) == null ? 0 : Integer.parseInt(m.group(4));
 
-        return new TimeRange(LocalTime.of(sh, sm), LocalTime.of(eh, em));
+        return new TimeRange(normalizeTime(sh, sm), normalizeTime(eh, em));
+    }
+
+    private LocalTime normalizeTime(int hour, int minute) {
+        int safeHour = Math.min(hour, 24);
+        int safeMinute = Math.min(minute, 59);
+
+        if (safeHour == 24) {
+            return LocalTime.of(23, 59);
+        }
+
+        return LocalTime.of(safeHour, safeMinute);
     }
 
     private String extractRemainder(String line, List<Matcher> matchers) {
@@ -177,6 +214,34 @@ public class PatternParser {
                 .replaceAll("[.,;:—–-]+", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private void removeNameAndCapture(String text, List<String> placeParts) {
+        removeNameAndCapture(text, placeParts, null);
+    }
+
+    private String removeNameAndCapture(String text, List<String> placeParts, String currentName) {
+        if (text == null || text.isBlank()) {
+            return currentName;
+        }
+
+        String foundName = extractNameFromText(text);
+        String cleaned = text;
+
+        if (foundName != null) {
+            cleaned = text.replace(foundName, " ")
+                    .replaceAll("\\s+", " ")
+                    .trim();
+            if (currentName == null) {
+                currentName = foundName;
+            }
+        }
+
+        if (!cleaned.isBlank()) {
+            placeParts.add(cleaned);
+        }
+
+        return currentName;
     }
 
     private record TimeRange(LocalTime start, LocalTime end) {}

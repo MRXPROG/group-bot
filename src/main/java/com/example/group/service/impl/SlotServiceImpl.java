@@ -12,8 +12,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -22,12 +20,6 @@ import java.util.Optional;
 public class SlotServiceImpl implements SlotService {
 
     private final MainBotApiClient api; // сервис общения с основным ботом
-
-    private static final Map<String, String> PLACE_ALIASES = new LinkedHashMap<>() {{
-        put("\\bнп\\b", "нова пошта");
-        put("\\bnp\\b", "нова пошта");
-        put("\\bновая?\\s+пошта\\b", "нова пошта");
-    }};
 
     @Override
     public Optional<SlotDTO> findMatchingSlot(ParsedShiftRequest req) {
@@ -42,24 +34,24 @@ public class SlotServiceImpl implements SlotService {
 
         // 1) Загружаем ВСЕ слоты на эту дату от основного микросервиса
         List<SlotDTO> slots = api.getSlotsForDate(date);
-
-        // 2) Фильтрация по месту (нестрогая): ищем максимально похожий слот
-        slots = filterByPlace(slots, placeText);
         if (slots.isEmpty()) {
-            log.info("No slots match place '{}'", placeText);
+            log.info("No slots available for date {}", date);
             return Optional.empty();
         }
 
-        // 3) Фильтрация по времени (разница = точное совпадение)
-        slots = filterByTime(slots, start, end);
-        if (slots.isEmpty()) {
-            log.info("Slots found by place, but no matching time");
+        // 2) Оцениваем похожесть по месту и времени и выбираем лучший слот
+        SlotScore bestMatch = slots.stream()
+                .map(slot -> scoreSlot(slot, placeText, start, end))
+                .max((a, b) -> Double.compare(a.score(), b.score()))
+                .orElse(null);
+
+        if (bestMatch == null || bestMatch.score() <= 0.15) {
+            log.info("No sufficiently similar slot found for place='{}' time={}–{}", placeText, start, end);
             return Optional.empty();
         }
 
-        // 4) Если несколько — выбираем первый
-        // (нормально, потому что реальные данные обычно не дублируются)
-        return Optional.of(slots.get(0));
+        // 3) Возвращаем лучший найденный вариант
+        return Optional.of(bestMatch.slot());
     }
 
     // ------------------ Вспомогательные методы ------------------
@@ -69,62 +61,12 @@ public class SlotServiceImpl implements SlotService {
         if (s == null) return "";
 
         String normalized = s.toLowerCase();
-        for (Map.Entry<String, String> entry : PLACE_ALIASES.entrySet()) {
-            normalized = normalized.replaceAll(entry.getKey(), entry.getValue());
-        }
 
         return normalized
                 .replace('№', ' ')
                 .replaceAll("[^\\p{L}\\p{N}]+", " ") // оставляем только буквы (всех языков) и цифры
                 .replaceAll("\\s+", " ")            // схлопываем пробелы
                 .trim();
-    }
-    /** Фильтруем по названию места. match = частичное совпадение */
-    private List<SlotDTO> filterByPlace(List<SlotDTO> slots, String placeText) {
-
-        if (placeText == null || placeText.isBlank()) return slots;
-
-        List<String> tokens = Arrays.stream(normalize(placeText).split("\\s+"))
-                .filter(t -> t.length() > 1)
-                .toList();
-
-        if (tokens.isEmpty()) {
-            return slots;
-        }
-
-        double bestScore = -1.0;
-
-        List<SlotDTO> scored = slots.stream()
-                .map(slot -> new SlotScore(slot, similarityScore(tokens, normalize(slot.getPlaceName()))))
-                .filter(scoredSlot -> scoredSlot.score > 0)
-                .toList();
-
-        for (SlotScore score : scored) {
-            if (score.score > bestScore) {
-                bestScore = score.score;
-            }
-        }
-
-        if (bestScore <= 0) {
-            return List.of();
-        }
-
-        double threshold = bestScore - 0.01; // оставляем все лучшие варианты с одинаковым счётом
-
-        return scored.stream()
-                .filter(scoredSlot -> scoredSlot.score >= threshold)
-                .map(scoredSlot -> scoredSlot.slot)
-                .toList();
-    }
-
-    /** Фильтрация по времени */
-    private List<SlotDTO> filterByTime(List<SlotDTO> list, LocalTime start, LocalTime end) {
-        return list.stream()
-                .filter(s ->
-                        s.getStart().toLocalTime().equals(start)
-                                && s.getEnd().toLocalTime().equals(end)
-                )
-                .toList();
     }
 
     private boolean isSimilar(String a, String b) {
@@ -172,6 +114,48 @@ public class SlotServiceImpl implements SlotService {
                 .count();
 
         return matched / (double) userTokens.size();
+    }
+
+    private SlotScore scoreSlot(SlotDTO slot, String placeText, LocalTime expectedStart, LocalTime expectedEnd) {
+        List<String> userTokens = Arrays.stream(placeText.split("\\s+"))
+                .filter(t -> t.length() > 1)
+                .toList();
+
+        double placeScore;
+        if (userTokens.isEmpty()) {
+            placeScore = 0.5; // без локации опираемся на время
+        } else {
+            placeScore = similarityScore(userTokens, normalize(slot.getPlaceName()));
+        }
+
+        double timeScore = timeSimilarity(expectedStart, expectedEnd, slot.getStart().toLocalTime(), slot.getEnd().toLocalTime());
+
+        // вес локации чуть выше, чтобы совпадающая локация с небольшой ошибкой времени выигрывала
+        double total = placeScore * 0.6 + timeScore * 0.4;
+
+        log.debug("Slot {} placeScore={} timeScore={} total={}", slot.getId(), placeScore, timeScore, total);
+
+        return new SlotScore(slot, total);
+    }
+
+    private double timeSimilarity(LocalTime expectedStart, LocalTime expectedEnd, LocalTime slotStart, LocalTime slotEnd) {
+        if (expectedStart == null || expectedEnd == null) {
+            return 0.0;
+        }
+
+        long startDiff = Math.abs(java.time.Duration.between(expectedStart, slotStart).toMinutes());
+        long endDiff = Math.abs(java.time.Duration.between(expectedEnd, slotEnd).toMinutes());
+
+        // Принимаем небольшие расхождения до 3 часов, дальше считаем совсем неподходящим
+        double startScore = 1.0 - Math.min(startDiff, 180) / 180.0;
+        double endScore = 1.0 - Math.min(endDiff, 180) / 180.0;
+
+        // если временные интервалы пересекаются — бонус
+        boolean overlaps = !(slotEnd.isBefore(expectedStart) || slotStart.isAfter(expectedEnd));
+        double overlapBonus = overlaps ? 0.1 : 0.0;
+
+        double base = (startScore + endScore) / 2.0 + overlapBonus;
+        return Math.min(base, 1.0);
     }
 
     private record SlotScore(SlotDTO slot, double score) {}
