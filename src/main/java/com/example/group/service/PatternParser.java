@@ -7,6 +7,9 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Year;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,121 +18,134 @@ import java.util.regex.Pattern;
 @Component
 public class PatternParser {
 
-    // Пример строки времени: "18-23", "18:00-23:00", "з 7 до 13", "з 07:00 до 23"
-    // Группы: 1=startHour, 2=startMin (опц), 3=endHour, 4=endMin (опц)
+    // Обнаружение времени: "18-23", "09:00 — 17:00", "з 8 до 12"
     private static final Pattern TIME_PATTERN = Pattern.compile(
-            "(?iu)^(?:з\\s*)?(\\d{1,2})[:.-]?(\\d{0,2})?\\s*(?:до|[-–])\\s*(\\d{1,2})[:.-]?(\\d{0,2})?.*$"
+            "(?iu)(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–])\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
     );
 
-    public Optional<ParsedShiftRequest> parse(String rawText) {
-        if (rawText == null) return Optional.empty();
+    // Обнаружение даты: 9.12, 09/12, 9.12.2025
+    private static final Pattern DATE_PATTERN = Pattern.compile(
+            "(\\d{1,2})[./](\\d{1,2})(?:[./](\\d{2,4}))?"
+    );
 
-        String text = rawText.trim();
-        if (text.isEmpty()) return Optional.empty();
-
-        // Разбиваем по строкам
-        String[] lines = text.split("\\r?\\n");
-        if (lines.length < 4) {
-            // Нам важно именно 4 строки: дата, имя, время, локация
-            return Optional.empty();
-        }
-
-        String dateLine = lines[0].trim();
-        String nameLine = lines[1].trim();
-        String timeLine = lines[2].trim();
-        String placeLine = lines[3].trim();
-
-        try {
-            LocalDate date = parseDate(dateLine);
-            TimeRange range = parseTime(timeLine);
-
-            if (range == null) {
-                log.debug("Failed to parse time from line: '{}'", timeLine);
-                return Optional.empty();
-            }
-
-            if (nameLine.isEmpty() || placeLine.isEmpty()) {
-                return Optional.empty();
-            }
-
-            ParsedShiftRequest req = new ParsedShiftRequest(
-                    date,
-                    range.start(),
-                    range.end(),
-                    placeLine,
-                    nameLine
-            );
-            return Optional.of(req);
-        } catch (Exception e) {
-            log.debug("PatternParser error for text='{}': {}", text, e.getMessage());
-            return Optional.empty();
-        }
+    // Имя: минимум 2 слова, без цифр
+    private static boolean looksLikeName(String s) {
+        if (s == null) return false;
+        String trimmed = s.trim();
+        if (trimmed.split("\\s+").length < 2) return false;
+        if (trimmed.matches(".*\\d.*")) return false;
+        return true;
     }
 
-    // ---------------------- DATE PARSING ----------------------
+    public Optional<ParsedShiftRequest> parse(String rawText) {
 
-    private LocalDate parseDate(String line) {
-        // Допускаем как точки, так и слеши: "14.11", "14/11/2025"
-        String norm = line.trim().replace('/', '.');
-
-        String[] parts = norm.split("\\.");
-        if (parts.length < 2 || parts.length > 3) {
-            throw new IllegalArgumentException("Unsupported date format: " + line);
+        if (rawText == null || rawText.isBlank()) {
+            return Optional.empty();
         }
 
-        int day = Integer.parseInt(parts[0]);
-        int month = Integer.parseInt(parts[1]);
+        String[] lines = Arrays.stream(rawText.split("\\r?\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toArray(String[]::new);
+
+        if (lines.length == 0) {
+            return Optional.empty();
+        }
+
+        LocalDate date = null;
+        LocalTime start = null;
+        LocalTime end = null;
+        String name = null;
+        List<String> placeParts = new  ArrayList<>();
+
+        for (String line : lines) {
+
+            // 1) ПРОВЕРКА НА ДАТУ + ВРЕМЯ в 1 строке
+            Matcher dt = DATE_PATTERN.matcher(line);
+            Matcher tm = TIME_PATTERN.matcher(line);
+
+            if (dt.find() && tm.find()) {
+                date = parseDate(dt);
+                var range = parseTime(tm);
+                start = range.start();
+                end = range.end();
+                continue;
+            }
+
+            // 2) ПРОВЕРКА НА ДАТУ
+            if (date == null) {
+                Matcher m = DATE_PATTERN.matcher(line);
+                if (m.find()) {
+                    date = parseDate(m);
+                    continue;
+                }
+            }
+
+            // 3) ПРОВЕРКА НА ВРЕМЯ
+            if (start == null || end == null) {
+                Matcher m = TIME_PATTERN.matcher(line);
+                if (m.find()) {
+                    var range = parseTime(m);
+                    start = range.start();
+                    end = range.end();
+                    continue;
+                }
+            }
+
+            // 4) ПРОВЕРКА НА ИМЯ
+            if (name == null && looksLikeName(line)) {
+                name = line;
+                continue;
+            }
+
+            // 5) Остальное → локация
+            placeParts.add(line);
+        }
+
+        if (date == null || start == null || end == null || name == null) {
+            log.debug("Failed to detect required fields: date={}, time={}, name={}", date, start, name);
+            return Optional.empty();
+        }
+
+        String place = String.join(", ", placeParts);
+
+        return Optional.of(new ParsedShiftRequest(
+                date,
+                start,
+                end,
+                place,
+                name
+        ));
+    }
+
+    // --------------------- DATE ---------------------
+
+    private LocalDate parseDate(Matcher m) {
+        int day = Integer.parseInt(m.group(1));
+        int month = Integer.parseInt(m.group(2));
         int year;
 
-        if (parts.length == 3) {
-            // указали год явно
-            year = Integer.parseInt(parts[2]);
-            if (year < 100) {
-                // если вдруг дали 25 → считаем как 2025
-                year += 2000;
-            }
+        if (m.group(3) != null) {
+            year = Integer.parseInt(m.group(3));
+            if (year < 100) year += 2000;
         } else {
-            // если год не указан — берём текущий
             year = Year.now().getValue();
         }
 
         return LocalDate.of(year, month, day);
     }
 
-    // ---------------------- TIME PARSING ----------------------
+    // --------------------- TIME ---------------------
 
-    private TimeRange parseTime(String line) {
-        String norm = line.trim();
+    private TimeRange parseTime(Matcher m) {
+        int sh = Integer.parseInt(m.group(1));
+        int sm = m.group(2) == null ? 0 : Integer.parseInt(m.group(2));
 
-        Matcher m = TIME_PATTERN.matcher(norm);
-        if (!m.matches()) {
-            return null;
-        }
+        int eh = Integer.parseInt(m.group(3));
+        int em = m.group(4) == null ? 0 : Integer.parseInt(m.group(4));
 
-        int sh = Integer.parseInt(m.group(1)); // start hour
-        int sm = parseMinutes(m.group(2));     // start minutes
-        int eh = Integer.parseInt(m.group(3)); // end hour
-        int em = parseMinutes(m.group(4));     // end minutes
-
-        // Простейшая нормализация
-        if (sh < 0 || sh > 23 || eh < 0 || eh > 23) return null;
-        if (sm < 0 || sm > 59 || em < 0 || em > 59) return null;
-
-        LocalTime start = LocalTime.of(sh, sm);
-        LocalTime end = LocalTime.of(eh, em);
-
-        return new TimeRange(start, end);
+        return new TimeRange(LocalTime.of(sh, sm), LocalTime.of(eh, em));
     }
 
-    private int parseMinutes(String group) {
-        if (group == null || group.isBlank()) return 0;
-        if (group.length() == 1) {
-            // "7-13" → 7:00–13:00
-            return 0;
-        }
-        return Integer.parseInt(group);
-    }
-
-    // небольшой внутренний record для удобства
     private record TimeRange(LocalTime start, LocalTime end) {}
 }
