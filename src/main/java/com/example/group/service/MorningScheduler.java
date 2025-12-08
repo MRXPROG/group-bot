@@ -10,8 +10,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 
-import com.example.group.service.BotSettingsService;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor

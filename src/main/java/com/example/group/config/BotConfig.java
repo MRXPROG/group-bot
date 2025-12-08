@@ -22,6 +22,5 @@ public class BotConfig {
     @Value("${mainbot.username}")
     String mainBotUsername;
 
-    @Value("${group.chat-id}")
     Long groupChatId;
 }

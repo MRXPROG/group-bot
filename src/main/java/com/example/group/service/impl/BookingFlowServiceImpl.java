@@ -277,8 +277,8 @@ public class BookingFlowServiceImpl implements BookingFlowService {
     }
 
     private boolean isMessageMissing(TelegramApiException e) {
-        Integer code = e.getErrorCode();
-        String response = Optional.ofNullable(e.getApiResponse()).orElse("");
+        Integer code = e.getMessage().hashCode();
+        String response = Optional.ofNullable(e.getMessage()).orElse("");
         String description = Optional.ofNullable(e.getMessage()).orElse("");
         String payload = (response + " " + description).toLowerCase();
         return Objects.equals(code, 400) && (payload.contains("message to reply not found") ||

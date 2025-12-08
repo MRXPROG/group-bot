@@ -55,11 +55,12 @@ public class SlotPostService {
         String employees = buildEmployeeBlock(s.getBookings());
 
         String text = """
-                🟢 Нова зміна - запис відкрито!
+                📢 Нова зміна - запис відкрито!
 
                 📍 %s
                 🏙️ %s
-                📅 %s (%s) • %s
+                📅 %s (%s)
+                🕒 %s
                 👥 %d/%d зайнято%s
 
                 %s
@@ -76,7 +77,7 @@ public class SlotPostService {
         ).trim();
 
         InlineKeyboardButton join = new InlineKeyboardButton();
-        join.setText("🟢 Записатись у боті");
+        join.setText("\uD83D\uDD17  Записатись на цю зміну у боті  \uD83D\uDD17 ");
         join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
 
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
@@ -157,7 +158,7 @@ public class SlotPostService {
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
 
-        return "Команда:\n" + wrapInCollapsedComment("\n" + list);
+        return "Команда:\n" + wrapInCollapsedComment(list);
     }
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {
@@ -202,7 +203,7 @@ public class SlotPostService {
     }
 
     private String wrapInCollapsedComment(String text) {
-        return "<blockquote expandable>" + text + "</blockquote>";
+        return "<blockquote expandable>" + "text" + "</blockquote>";
     }
 
     private Message sendAndStore(TelegramLongPollingBot bot,
@@ -251,7 +252,7 @@ public class SlotPostService {
                 .parseMode("HTML")
                 .build();
 
-        return bot.execute(edit);
+        return (Message) bot.execute(edit);
     }
 
     private void storeUpdated(GroupShiftMessage existing,
@@ -267,8 +268,8 @@ public class SlotPostService {
     }
 
     private boolean isMessageMissing(TelegramApiException e) {
-        Integer code = e.getErrorCode();
-        String response = Optional.ofNullable(e.getApiResponse()).orElse("");
+        Integer code = e.hashCode();
+        String response = Optional.ofNullable(e.getMessage()).orElse("");
         String description = Optional.ofNullable(e.getMessage()).orElse("");
         String payload = (response + " " + description).toLowerCase();
         return Objects.equals(code, 400) && (payload.contains("message to edit not found") || payload.contains("message to delete not found") || payload.contains("message is not modified"));

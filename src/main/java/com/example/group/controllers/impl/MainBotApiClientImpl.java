@@ -72,7 +72,7 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     @Override
     public void createBooking(Long telegramUserId, Long slotId, String firstName, String lastName) {
         try {
-            String url = baseUrl + "/api/group/bookings";
+            String url = baseUrl + "/bookings";
 
             var body = new BookingCreateRequest(telegramUserId, slotId, firstName, lastName);
 
