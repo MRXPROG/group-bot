@@ -1,9 +1,9 @@
 package com.example.group.service;
 
-import com.example.group.config.BotConfig;
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.SlotDTO;
 import com.example.group.repository.GroupShiftMessageRepository;
+import com.example.group.service.BotSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class EveningScheduler {
 
     private final MainBotApiClient api;
-    private final BotConfig config;
+    private final BotSettingsService settingsService;
     private final SlotPostService slotPostService;
     private final GroupShiftMessageRepository shiftMsgRepo;
 
@@ -31,6 +31,12 @@ public class EveningScheduler {
     public void run() {
         if (bot == null) {
             log.warn("EveningScheduler: bot is not set yet");
+            return;
+        }
+
+        Long groupChatId = settingsService.getGroupChatId();
+        if (groupChatId == null || groupChatId <= 0) {
+            log.warn("EveningScheduler: group chat is not bound yet");
             return;
         }
 
@@ -55,7 +61,7 @@ public class EveningScheduler {
                 .filter(slot -> !morningPosted.contains(slot.getId()))
                 .forEach(slot -> {
                     try {
-                        slotPostService.publishSlotPost(bot, config.getGroupChatId(), slot, false, true);
+                        slotPostService.publishSlotPost(bot, groupChatId, slot, false, true);
                     } catch (Exception e) {
                         log.error("Failed to publish evening slot {}: {}", slot.getId(), e.getMessage());
                     }
