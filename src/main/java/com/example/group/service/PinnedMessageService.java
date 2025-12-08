@@ -16,8 +16,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -25,6 +23,8 @@ import java.util.stream.IntStream;
 public class PinnedMessageService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", Locale.forLanguageTag("uk"));
+    private static final int LEADERBOARD_SIZE = 10;
+    private static final String VACANT_PLACE = "Місце вільне, можеш бути тут ти";
 
     private final BotSettingsService botSettingsService;
 
@@ -94,12 +94,12 @@ public class PinnedMessageService {
         List<UserShiftCount> sorted = Optional.ofNullable(leaderboard)
                 .orElse(List.of())
                 .stream()
+                .filter(row -> row != null && row.count() > 0)
                 .sorted(Comparator.comparingInt(UserShiftCount::count).reversed())
+                .limit(LEADERBOARD_SIZE)
                 .toList();
 
-        String body = sorted.isEmpty()
-                ? "Поки немає даних по змінах."
-                : buildLines(sorted);
+        String body = buildLines(sorted);
 
         return """
                 🏆 Топ виконавців змін (за весь час)
@@ -111,25 +111,31 @@ public class PinnedMessageService {
     }
 
     private String buildLines(List<UserShiftCount> sorted) {
-        AtomicBoolean firstLine = new AtomicBoolean(true);
         StringBuilder sb = new StringBuilder();
 
-        IntStream.range(0, sorted.size()).forEach(idx -> {
-            UserShiftCount row = sorted.get(idx);
-            String fullName = ((Optional.ofNullable(row.firstName()).orElse("") + " " + Optional.ofNullable(row.lastName()).orElse("")).trim());
-            if (fullName.isBlank()) {
-                fullName = "Невідомий";
-            }
-            if (!firstLine.getAndSet(false)) {
+        for (int idx = 0; idx < LEADERBOARD_SIZE; idx++) {
+            if (idx > 0) {
                 sb.append("\n");
             }
-            sb.append(idx + 1)
-                    .append(". ")
-                    .append(fullName)
-                    .append(" — ")
-                    .append(row.count())
-                    .append(" змін");
-        });
+
+            if (idx < sorted.size()) {
+                UserShiftCount row = sorted.get(idx);
+                String fullName = (Optional.ofNullable(row.firstName()).orElse("") + " " + Optional.ofNullable(row.lastName()).orElse("")).trim();
+                if (fullName.isBlank()) {
+                    fullName = "Невідомий";
+                }
+                sb.append(idx + 1)
+                        .append(". ")
+                        .append(fullName)
+                        .append(" — ")
+                        .append(row.count())
+                        .append(" змін");
+            } else {
+                sb.append(idx + 1)
+                        .append(". ")
+                        .append(VACANT_PLACE);
+            }
+        }
 
         return sb.toString();
     }
