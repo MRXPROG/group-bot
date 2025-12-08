@@ -23,6 +23,9 @@ public class UserFlowState {
     private Long userId;
     private Long chatId;
 
+    private String firstName;
+    private String lastName;
+
     /** сообщение пользователя, которое мы должны удалить */
     private Integer userMessageId;
 
