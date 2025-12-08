@@ -64,8 +64,8 @@ public class SlotPostService {
 
                 %s
                 """.formatted(
-                s.getPlaceName(),
-                s.getCityName(),
+                escapeHtml(s.getPlaceName()),
+                escapeHtml(s.getCityName()),
                 date,
                 day,
                 time,
@@ -150,14 +150,14 @@ public class SlotPostService {
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
 
         if (activeBookings.isEmpty()) {
-            return "Команда: поки нікого. Долучайся!";
+            return "Команда: " + wrapInSpoiler("поки нікого. Долучайся!");
         }
 
         String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
 
-        return "Команда:\n" + list;
+        return "Команда: " + wrapInSpoiler("\n" + list);
     }
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {
@@ -190,7 +190,19 @@ public class SlotPostService {
                 Optional.ofNullable(booking.getLastName()).orElse("")).trim();
         if (name.isBlank()) name = "Невідомий";
 
-        return statusIcon + " " + name;
+        return statusIcon + " " + escapeHtml(name);
+    }
+
+    private String escapeHtml(String value) {
+        String safe = Optional.ofNullable(value).orElse("");
+        return safe
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private String wrapInSpoiler(String text) {
+        return "<tg-spoiler>" + text + "</tg-spoiler>";
     }
 
     private Message sendAndStore(TelegramLongPollingBot bot,
@@ -213,6 +225,7 @@ public class SlotPostService {
                                  GroupShiftMessage existing) throws Exception {
         SendMessage sm = new SendMessage(chatId.toString(), text);
         sm.setReplyMarkup(kb);
+        sm.setParseMode("HTML");
 
         Message sent = bot.execute(sm);
 
@@ -235,6 +248,7 @@ public class SlotPostService {
                 .messageId(messageId)
                 .text(newText)
                 .replyMarkup(markup)
+                .parseMode("HTML")
                 .build();
 
         return bot.execute(edit);
