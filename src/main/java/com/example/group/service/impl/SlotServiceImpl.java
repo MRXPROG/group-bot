@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -58,15 +59,27 @@ public class SlotServiceImpl implements SlotService {
 
     /** Упрощённая нормализация текста для сравнения */
     private String normalize(String s) {
-        return s.toLowerCase(Locale.ROOT).trim();
+        if (s == null) return "";
+        return s
+                .toLowerCase()
+                .replaceAll("[^\\p{L}\\p{N}]+", " ") // оставляем только буквы (всех языков) и цифры
+                .replaceAll("\\s+", " ")            // схлопываем пробелы
+                .trim();
     }
-
     /** Фильтруем по названию места. match = частичное совпадение */
-    private List<SlotDTO> filterByPlace(List<SlotDTO> list, String placeText) {
-        return list.stream()
-                .filter(s -> {
-                    String place = normalize(s.getPlaceName());
-                    return place.contains(placeText) || placeText.contains(place);
+    private List<SlotDTO> filterByPlace(List<SlotDTO> slots, String placeText) {
+
+        if (placeText == null || placeText.isBlank()) return slots;
+
+        List<String> tokens = Arrays.stream(normalize(placeText).split("\\s+"))
+                .filter(t -> t.length() > 1)
+                .toList();
+
+        return slots.stream()
+                .filter(slot -> {
+                    String slotNorm = normalize(slot.getPlaceName());
+                    boolean ok = tokens.stream().allMatch(slotNorm::contains);
+                    return ok;
                 })
                 .toList();
     }
