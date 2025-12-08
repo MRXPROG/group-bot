@@ -33,6 +33,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final SlotPostService slotPostService;
     private final BotSettingsService settingsService;
     private final LeaderboardUpdater leaderboardUpdater;
+    private final SlotPostUpdater slotPostUpdater;
 
     @Override
     public String getBotUsername() {
@@ -53,6 +54,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         reminderScheduler.start(this);
         flowCleanerScheduler.start(this);
         leaderboardScheduler.start(this);
+        slotPostUpdater.start(this);
 
         leaderboardUpdater.updatePinnedLeaderboard(this);
     }
