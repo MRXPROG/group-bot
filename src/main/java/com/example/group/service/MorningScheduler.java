@@ -23,7 +23,7 @@ public class MorningScheduler {
 
     private TelegramBot bot;
 
-    @Scheduled(cron = "0 0 9 * * *")
+    @Scheduled(cron = "0 */2 * * * *")
     public void run() {
         if (bot == null) {
             log.warn("MorningScheduler: bot is not set yet");
@@ -38,7 +38,7 @@ public class MorningScheduler {
         LocalDate tomorrow = LocalDate.now().plusDays(1);
         List<SlotDTO> slots = api.getUpcomingSlots();
         slots.stream()
-                .filter(slot -> !slot.getStartTime().toLocalDate().isBefore(tomorrow))
+                .filter(slot -> !slot.getStart().toLocalDate().isBefore(tomorrow))
                 .forEach(slot -> {
                     try {
                         slotPostService.publishSlotPost(bot, groupChatId, slot, true, false);

@@ -23,7 +23,7 @@ public class SlotReminderHistory {
     private Long slotId;
 
     /** тип напоминания: 24, 12, 6 */
-    private Integer hoursBefore;
+    private Integer hours;
 
     private LocalDateTime sentAt;
 }

@@ -49,9 +49,9 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                 """
         ).formatted(
                 slot.getPlaceName(),
-                slot.getStartTime().toLocalDate(),
-                slot.getStartTime().toLocalTime(),
-                slot.getEndTime().toLocalTime(),
+                slot.getStart().toLocalDate(),
+                slot.getStart().toLocalTime(),
+                slot.getEnd().toLocalTime(),
                 innLine
         );
 

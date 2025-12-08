@@ -75,8 +75,8 @@ public class SlotServiceImpl implements SlotService {
     private List<SlotDTO> filterByTime(List<SlotDTO> list, LocalTime start, LocalTime end) {
         return list.stream()
                 .filter(s ->
-                        s.getStartTime().toLocalTime().equals(start)
-                                && s.getEndTime().toLocalTime().equals(end)
+                        s.getStart().toLocalTime().equals(start)
+                                && s.getEnd().toLocalTime().equals(end)
                 )
                 .toList();
     }

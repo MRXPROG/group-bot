@@ -41,9 +41,9 @@ public class SlotPostService {
                                    SlotDTO s,
                                    boolean morningPost,
                                    boolean eveningPost) throws Exception {
-        String date = s.getStartTime().toLocalDate().format(DATE);
-        String time = s.getStartTime().toLocalTime().format(TIME) + " — " +
-                s.getEndTime().toLocalTime().format(TIME);
+        String date = s.getStart().toLocalDate().format(DATE);
+        String time = s.getStart().toLocalTime().format(TIME) + " — " +
+                s.getEnd().toLocalTime().format(TIME);
 
         String innLine = s.isInnRequired() ? "\nℹ️ Для цієї локації потрібен ІПН." : "";
 
@@ -108,7 +108,7 @@ public class SlotPostService {
 
         String text = prefix + "\n" +
                 "📍 " + s.getPlaceName() + "\n" +
-                "🕒 " + s.getStartTime().toLocalTime() + " – " + s.getEndTime().toLocalTime() + "\n" +
+                "🕒 " + s.getStart().toLocalTime() + " – " + s.getEnd().toLocalTime() + "\n" +
                 "Залишилось місць: " + free;
 
         SendMessage sm = new SendMessage(chatId.toString(), text);
@@ -130,7 +130,7 @@ public class SlotPostService {
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
-        String statusIcon = switch (Optional.ofNullable(booking.getStatus()).orElse(BookingStatusDTO.PENDING)) {
+        String statusIcon = switch (Optional.ofNullable(booking.getStatus()).orElse(BookingStatus.PENDING)) {
             case CONFIRMED, COMPLETED -> "✅";
             case CANCELLED -> "⏹️";
             case PENDING -> "⏳";

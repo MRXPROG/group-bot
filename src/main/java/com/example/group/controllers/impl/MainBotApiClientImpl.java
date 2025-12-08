@@ -31,7 +31,7 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     @Override
     public List<SlotDTO> getSlotsForDate(LocalDate date) {
         try {
-            String url = baseUrl + "/api/group/slots?date=" + date;
+            String url = baseUrl + "/slots?date=" + date;
             ResponseEntity<SlotDTO[]> response = restTemplate.getForEntity(url, SlotDTO[].class);
             SlotDTO[] body = response.getBody();
             return body != null ? Arrays.asList(body) : Collections.emptyList();
@@ -44,7 +44,7 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     @Override
     public List<SlotDTO> getUpcomingSlots() {
         try {
-            String url = baseUrl + "/api/group/slots/upcoming";
+            String url = baseUrl + "/slots/upcoming";
             ResponseEntity<SlotDTO[]> response = restTemplate.getForEntity(url, SlotDTO[].class);
             SlotDTO[] body = response.getBody();
             return body != null ? Arrays.asList(body) : Collections.emptyList();
@@ -57,7 +57,7 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     @Override
     public SlotDTO getSlotById(Long slotId) {
         try {
-            String url = baseUrl + "/api/group/slots/" + slotId;
+            String url = baseUrl + "/slots/" + slotId;
             return restTemplate.getForObject(url, SlotDTO.class);
         } catch (Exception e) {
             log.error("Failed to load slot {}: {}", slotId, e.getMessage());
@@ -84,6 +84,5 @@ public class MainBotApiClientImpl implements MainBotApiClient {
         }
     }
 
-    // внутренний DTO для POST-запроса
     private record BookingCreateRequest(Long telegramUserId, Long slotId) {}
 }

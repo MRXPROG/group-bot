@@ -48,7 +48,7 @@ public class ReminderScheduler {
             SlotDTO slot = api.getSlotById(msg.getSlotId());
             if (slot == null) continue;
 
-            long hoursUntil = Duration.between(now, slot.getStartTime()).toHours();
+            long hoursUntil = Duration.between(now, slot.getStart()).toHours();
 
             for (Integer mark : REMINDER_HOURS) {
                 if (hoursUntil == mark) {
@@ -62,7 +62,7 @@ public class ReminderScheduler {
                         reminderRepo.save(
                                 SlotReminderHistory.builder()
                                         .slotId(slot.getId())
-                                        .hoursBefore(mark)
+                                        .hours(mark)
                                         .sentAt(now)
                                         .build()
                         );

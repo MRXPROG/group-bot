@@ -27,7 +27,7 @@ public class EveningScheduler {
 
     private TelegramBot bot;
 
-    @Scheduled(cron = "0 0 21 * * *")
+    @Scheduled(cron = "0 */4 * * * *")
     public void run() {
         if (bot == null) {
             log.warn("EveningScheduler: bot is not set yet");

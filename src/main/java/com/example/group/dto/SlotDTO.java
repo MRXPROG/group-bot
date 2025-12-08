@@ -16,8 +16,8 @@ public class SlotDTO {
     private String placeName;
     private String cityName;
 
-    private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    private LocalDateTime start;
+    private LocalDateTime end;
 
     private int capacity;
     private int bookedCount;

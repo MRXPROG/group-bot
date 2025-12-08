@@ -46,7 +46,6 @@ public class TelegramBot extends TelegramLongPollingBot {
     public void init() {
         log.info("GroupShiftBot '{}' started", config.getBotName());
 
-        // Планировщики запускаются здесь
         morningScheduler.start(this);
         eveningScheduler.start(this);
         reminderScheduler.start(this);
@@ -57,17 +56,10 @@ public class TelegramBot extends TelegramLongPollingBot {
     @SneakyThrows
     public void onUpdateReceived(Update update) {
 
-        // ----------------------------
-        // 1) Сообщения в группе
-        // ----------------------------
         if (update.hasMessage() && update.getMessage().hasText()) {
             handleMessage(update.getMessage());
             return;
         }
-
-        // ----------------------------
-        // 2) Callback кнопки
-        // ----------------------------
         if (update.hasCallbackQuery()) {
             handleCallback(update.getCallbackQuery());
         }
@@ -114,9 +106,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         ));
     }
 
-    // ============================================================
-    // ОБРАБОТКА СООБЩЕНИЯ ПО ПАТТЕРНУ "ДАТА\nФИО\nВРЕМЯ\nЛОКАЦИЯ"
-    // ============================================================
     @SneakyThrows
     private void handlePatternMessage(Message msg) {
 
@@ -140,13 +129,9 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        // Запуск процесса записи
         bookingFlow.startFlowInGroup(this, msg, slotOpt.get());
     }
 
-    // ============================================================
-    // CALLBACK "Так / Ні"
-    // ============================================================
     @SneakyThrows
     private void handleCallback(CallbackQuery cbq) {
 
@@ -158,7 +143,6 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        // Формат: "CFM:{slotId}:{userId}:{YES|NO}"
         String[] p = data.split(":");
         if (p.length != 4) {
             answer(cbq.getId(), "Невірна команда");
@@ -170,7 +154,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         String decision = p[3];
 
         if (!userId.equals(initiatorId)) {
-            // Нажимает другой человек
             answer(cbq.getId(), "❌ Ця кнопка не для вас.");
             return;
         }
@@ -178,25 +161,16 @@ public class TelegramBot extends TelegramLongPollingBot {
         bookingFlow.handleDecision(this, cbq, slotId, decision);
     }
 
-    // ============================================================
-    // ПУБЛИКАЦИЯ СЛОТА
-    // ============================================================
     @SneakyThrows
     public void publishSlotPost(Long chatId, SlotDTO slot) {
         slotPostService.publishSlotPost(this, chatId, slot);
     }
 
-    // ============================================================
-    // НАПОМИНАНИЕ К СЛОТУ
-    // ============================================================
     @SneakyThrows
     public void sendReminder(Long chatId, Long messageId, SlotDTO slot, String prefix) {
         slotPostService.sendReminder(this, chatId, Math.toIntExact(messageId), slot, prefix);
     }
 
-    // ============================================================
-    // Утилита для ответа callback’у
-    // ============================================================
     private void answer(String callbackId, String text) {
         try {
             execute(
