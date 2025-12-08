@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
@@ -73,21 +72,8 @@ public class SlotPostUpdater {
     }
 
     private void cleanupSlotPost(Long chatId, GroupShiftMessage msg) {
-        boolean deleted = deleteMessage(chatId, msg.getMessageId());
-        if (!deleted) {
-            markAsServiceMessage(chatId, msg.getMessageId());
-        }
+        markAsServiceMessage(chatId, msg.getMessageId());
         shiftMsgRepo.delete(msg);
-    }
-
-    private boolean deleteMessage(Long chatId, Integer messageId) {
-        try {
-            Boolean result = bot.execute(new DeleteMessage(chatId.toString(), messageId));
-            return Boolean.TRUE.equals(result);
-        } catch (TelegramApiException e) {
-            log.warn("SlotPostUpdater: failed to delete expired slot message {}: {}", messageId, e.getMessage());
-            return false;
-        }
     }
 
     private void markAsServiceMessage(Long chatId, Integer messageId) {

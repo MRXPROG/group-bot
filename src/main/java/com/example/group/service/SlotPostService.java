@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
@@ -49,6 +50,7 @@ public class SlotPostService {
 
         String innLine = s.isInnRequired() ? "\nℹ️ Для цієї локації потрібен ІПН." : "";
 
+        int activeBookings = countActiveBookings(s);
         String employees = buildEmployeeBlock(s.getBookings());
 
         String text = """
@@ -64,7 +66,7 @@ public class SlotPostService {
                 s.getCityName(),
                 date,
                 time,
-                s.getBookedCount(),
+                activeBookings,
                 s.getCapacity(),
                 innLine,
                 employees
@@ -77,14 +79,23 @@ public class SlotPostService {
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
         kb.setKeyboard(List.of(List.of(join)));
 
+        var existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
+        Integer oldMessageId = existingOpt.map(GroupShiftMessage::getMessageId).orElse(null);
+
+        if (oldMessageId != null) {
+            Message edited = tryEditExistingPost(bot, chatId, oldMessageId, text, kb);
+            if (edited != null) {
+                GroupShiftMessage updated = updateExisting(existingOpt.get(), oldMessageId, morningPost, eveningPost);
+                shiftMsgRepo.save(updated);
+                return edited;
+            }
+            log.warn("Failed to edit message {} for slot {}, sending a new one", oldMessageId, s.getId());
+        }
+
         SendMessage sm = new SendMessage(chatId.toString(), text);
         sm.setReplyMarkup(kb);
 
         Message sent = bot.execute(sm);
-
-        var existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
-
-        Integer oldMessageId = existingOpt.map(GroupShiftMessage::getMessageId).orElse(null);
 
         GroupShiftMessage gsm = existingOpt
                 .map(existing -> updateExisting(existing, sent.getMessageId(), morningPost, eveningPost))
@@ -111,7 +122,7 @@ public class SlotPostService {
                              SlotDTO s,
                              String prefix) throws Exception {
 
-        int free = s.getCapacity() - s.getBookedCount();
+        int free = s.getCapacity() - countActiveBookings(s);
         if (free <= 0) {
             log.info("Slot {} has no free places, skip reminder", s.getId());
             return;
@@ -129,13 +140,7 @@ public class SlotPostService {
 
     private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
         List<SlotBookingDTO> safeBookings = Optional.ofNullable(bookings).orElse(Collections.emptyList());
-        List<SlotBookingDTO> activeBookings = safeBookings.stream()
-                .filter(b -> {
-                    Booking.BookingStatus status = Optional.ofNullable(b.getStatus())
-                            .orElse(Booking.BookingStatus.PENDING);
-                    return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
-                })
-                .toList();
+        List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
 
         if (activeBookings.isEmpty()) {
             return "Наразі немає записів.";
@@ -146,6 +151,24 @@ public class SlotPostService {
                 .collect(Collectors.joining("\n"));
 
         return "Записані учасники:\n" + list;
+    }
+
+    private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {
+        return bookings.stream()
+                .filter(b -> {
+                    Booking.BookingStatus status = Optional.ofNullable(b.getStatus())
+                            .orElse(Booking.BookingStatus.PENDING);
+                    return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
+                })
+                .toList();
+    }
+
+    private int countActiveBookings(SlotDTO slot) {
+        List<SlotBookingDTO> bookings = Optional.ofNullable(slot.getBookings()).orElse(Collections.emptyList());
+        if (!bookings.isEmpty()) {
+            return filterActiveBookings(bookings).size();
+        }
+        return slot.getBookedCount();
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
@@ -172,6 +195,26 @@ public class SlotPostService {
         existing.setMorningPost(morningPost);
         existing.setEveningPost(eveningPost);
         return existing;
+    }
+
+    private Message tryEditExistingPost(TelegramLongPollingBot bot,
+                                        Long chatId,
+                                        Integer messageId,
+                                        String newText,
+                                        InlineKeyboardMarkup markup) {
+        try {
+            EditMessageText edit = EditMessageText.builder()
+                    .chatId(chatId.toString())
+                    .messageId(messageId)
+                    .text(newText)
+                    .replyMarkup(markup)
+                    .build();
+
+            return bot.execute(edit);
+        } catch (Exception e) {
+            log.warn("Failed to edit existing slot post {}: {}", messageId, e.getMessage());
+            return null;
+        }
     }
 
     private void cleanupOldPost(TelegramLongPollingBot bot,
