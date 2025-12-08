@@ -26,14 +26,14 @@ public class BotSettingsService {
         Long stored = repository.findById(SINGLETON_ID)
                 .map(BotSettings::getGroupChatId)
                 .orElse(config.getGroupChatId());
-        if (stored != null && stored > 0) {
+        if (stored != null) {
             cachedGroupChatId.set(stored);
         }
     }
 
     public Long getGroupChatId() {
         long value = cachedGroupChatId.get();
-        if (value > 0) {
+        if (value != 0) {
             return value;
         }
         return repository.findById(SINGLETON_ID)
