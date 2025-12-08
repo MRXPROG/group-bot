@@ -3,8 +3,11 @@ package com.example.group.service.impl;
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.SlotDTO;
 import com.example.group.model.UserFlowState;
+import com.example.group.model.GroupShiftMessage;
+import com.example.group.repository.GroupShiftMessageRepository;
 import com.example.group.repository.UserFlowStateRepository;
 import com.example.group.service.BookingFlowService;
+import com.example.group.service.SlotPostUpdater;
 import com.example.group.service.util.MessageCleaner;
 import com.example.group.service.exception.BookingConflictException;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,8 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
     private final UserFlowStateRepository stateRepo;
     private final MainBotApiClient mainApi;
+    private final GroupShiftMessageRepository shiftMsgRepo;
+    private final SlotPostUpdater slotPostUpdater;
     private final MessageCleaner cleaner;
 
     @Override
@@ -116,10 +121,12 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                         state.getChatId().toString(),
                         "✅ Ваша заявка в обробці. Ви можете перевірити статус у головному боті."
                 );
-                done.setReplyToMessageId(state.getUserMessageId());
+                done.setReplyToMessageId(resolveReplyMessageId(state));
 
                 Message m = bot.execute(done);
                 cleaner.deleteLater(bot, state.getChatId(), m.getMessageId(), 15);
+
+                slotPostUpdater.refreshSlotPosts();
             } catch (BookingConflictException e) {
                 log.warn("User {} already has booking for slot {}", userId, slotId);
                 answer(bot, cbq, "ℹ️ Ви вже записані на цю зміну.");
@@ -158,6 +165,12 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         if (cbqOrNull != null) {
             answer(bot, cbqOrNull, "✅ Операція завершена.");
         }
+    }
+
+    private Integer resolveReplyMessageId(UserFlowState state) {
+        return shiftMsgRepo.findByChatIdAndSlotId(state.getChatId(), state.getSlotId())
+                .map(GroupShiftMessage::getMessageId)
+                .orElse(state.getUserMessageId());
     }
 
     private NameParts resolveNames(Message msg, String userFullName) {
