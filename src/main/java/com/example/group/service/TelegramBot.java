@@ -2,6 +2,7 @@ package com.example.group.service;
 
 import com.example.group.config.BotConfig;
 import com.example.group.dto.SlotDTO;
+import com.example.group.service.BotSettingsService;
 import com.example.group.service.util.MessageCleaner;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final BookingFlowService bookingFlow;
     private final MessageCleaner cleaner;
     private final SlotPostService slotPostService;
+    private final BotSettingsService settingsService;
 
     @Override
     public String getBotUsername() {
@@ -59,7 +61,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         // 1) Сообщения в группе
         // ----------------------------
         if (update.hasMessage() && update.getMessage().hasText()) {
-            handlePatternMessage(update.getMessage());
+            handleMessage(update.getMessage());
             return;
         }
 
@@ -69,6 +71,47 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (update.hasCallbackQuery()) {
             handleCallback(update.getCallbackQuery());
         }
+    }
+
+    // ============================================================
+    // ОБЩАЯ ОБРАБОТКА ТЕКСТОВЫХ СООБЩЕНИЙ
+    // ============================================================
+    @SneakyThrows
+    private void handleMessage(Message msg) {
+        String text = msg.getText().trim();
+
+        if ("/bind".equalsIgnoreCase(text)) {
+            handleBindCommand(msg);
+            return;
+        }
+
+        handlePatternMessage(msg);
+    }
+
+    // ============================================================
+    // /bind — привязка бота к группе
+    // ============================================================
+    @SneakyThrows
+    private void handleBindCommand(Message msg) {
+        Chat chat = msg.getChat();
+        String chatType = chat.getType();
+        boolean isGroup = "group".equalsIgnoreCase(chatType) || "supergroup".equalsIgnoreCase(chatType);
+
+        if (!isGroup) {
+            execute(new SendMessage(
+                    msg.getChatId().toString(),
+                    "Команда доступна лише в групі"
+            ));
+            return;
+        }
+
+        Long chatId = chat.getId();
+        settingsService.bindGroupChat(chatId);
+
+        execute(new SendMessage(
+                chatId.toString(),
+                "✅ Бот доданий у групу та готовий працювати тут"
+        ));
     }
 
     // ============================================================

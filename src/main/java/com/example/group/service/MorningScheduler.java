@@ -1,6 +1,5 @@
 package com.example.group.service;
 
-import com.example.group.config.BotConfig;
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.SlotDTO;
 import lombok.RequiredArgsConstructor;
@@ -11,13 +10,15 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.example.group.service.BotSettingsService;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MorningScheduler {
 
     private final MainBotApiClient api;
-    private final BotConfig config;
+    private final BotSettingsService settingsService;
     private final SlotPostService slotPostService;
 
     private TelegramBot bot;
@@ -28,13 +29,19 @@ public class MorningScheduler {
             log.warn("MorningScheduler: bot is not set yet");
             return;
         }
+        Long groupChatId = settingsService.getGroupChatId();
+        if (groupChatId == null || groupChatId <= 0) {
+            log.warn("MorningScheduler: group chat is not bound yet");
+            return;
+        }
+
         LocalDate tomorrow = LocalDate.now().plusDays(1);
         List<SlotDTO> slots = api.getUpcomingSlots();
         slots.stream()
                 .filter(slot -> !slot.getStartTime().toLocalDate().isBefore(tomorrow))
                 .forEach(slot -> {
                     try {
-                        slotPostService.publishSlotPost(bot, config.getGroupChatId(), slot, true, false);
+                        slotPostService.publishSlotPost(bot, groupChatId, slot, true, false);
                     } catch (Exception e) {
                         log.error("Failed to publish slot {}: {}", slot.getId(), e.getMessage());
                     }
