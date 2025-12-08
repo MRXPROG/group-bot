@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface GroupShiftMessageRepository extends JpaRepository<GroupShiftMessage, Long> {
 
-    Optional<GroupShiftMessage> findFirstByChatIdAndSlotIdOrderByPostedAtDesc(Long chatId, Long slotId);
+    Optional<GroupShiftMessage> findByChatIdAndSlotId(Long chatId, Long slotId);
 
     List<GroupShiftMessage> findAllBySlotId(Long slotId);
 

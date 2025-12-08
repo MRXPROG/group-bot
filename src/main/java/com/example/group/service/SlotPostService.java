@@ -6,7 +6,6 @@ import com.example.group.dto.SlotDTO;
 import com.example.group.model.Booking;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
-import com.example.group.service.util.MessageCleaner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,6 +15,7 @@ import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageTe
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,7 +29,6 @@ public class SlotPostService {
 
     private final GroupShiftMessageRepository shiftMsgRepo;
     private final BotConfig config;
-    private final MessageCleaner cleaner;
 
     private static final Locale UA = Locale.forLanguageTag("uk");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy", UA);
@@ -39,11 +38,11 @@ public class SlotPostService {
         return publishSlotPost(bot, chatId, s, false, false);
     }
 
-    public Message publishSlotPost(TelegramLongPollingBot bot,
-                                   Long chatId,
-                                   SlotDTO s,
-                                   boolean morningPost,
-                                   boolean eveningPost) throws Exception {
+    public synchronized Message publishSlotPost(TelegramLongPollingBot bot,
+                                                Long chatId,
+                                                SlotDTO s,
+                                                boolean morningPost,
+                                                boolean eveningPost) throws Exception {
         String date = s.getStart().toLocalDate().format(DATE);
         String time = s.getStart().toLocalTime().format(TIME) + " — " +
                 s.getEnd().toLocalTime().format(TIME);
@@ -79,41 +78,25 @@ public class SlotPostService {
         InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
         kb.setKeyboard(List.of(List.of(join)));
 
-        var existingOpt = shiftMsgRepo.findFirstByChatIdAndSlotIdOrderByPostedAtDesc(chatId, s.getId());
-        Integer oldMessageId = existingOpt.map(GroupShiftMessage::getMessageId).orElse(null);
+        Optional<GroupShiftMessage> existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
 
-        if (oldMessageId != null) {
-            Message edited = tryEditExistingPost(bot, chatId, oldMessageId, text, kb);
-            if (edited != null) {
-                GroupShiftMessage updated = updateExisting(existingOpt.get(), oldMessageId, morningPost, eveningPost);
-                shiftMsgRepo.save(updated);
-                return edited;
-            }
-            log.warn("Failed to edit message {} for slot {}, sending a new one", oldMessageId, s.getId());
+        if (existingOpt.isEmpty()) {
+            return sendAndStore(bot, chatId, s, morningPost, eveningPost, text, kb);
         }
 
-        SendMessage sm = new SendMessage(chatId.toString(), text);
-        sm.setReplyMarkup(kb);
-
-        Message sent = bot.execute(sm);
-
-        GroupShiftMessage gsm = existingOpt
-                .map(existing -> updateExisting(existing, sent.getMessageId(), morningPost, eveningPost))
-                .orElseGet(() -> GroupShiftMessage.builder()
-                        .chatId(chatId)
-                        .messageId(sent.getMessageId())
-                        .slotId(s.getId())
-                        .postedAt(LocalDateTime.now())
-                        .morningPost(morningPost)
-                        .eveningPost(eveningPost)
-                        .build()
-                );
-
-        shiftMsgRepo.save(gsm);
-
-        cleanupOldPost(bot, chatId, oldMessageId, sent.getMessageId());
-
-        return sent;
+        GroupShiftMessage record = existingOpt.get();
+        try {
+            Message edited = executeEdit(bot, chatId, record.getMessageId(), text, kb);
+            storeUpdated(record, edited.getMessageId(), morningPost, eveningPost);
+            return edited;
+        } catch (TelegramApiException e) {
+            if (isMessageMissing(e)) {
+                log.warn("SlotPostService: message {} for slot {} was removed, re-publishing", record.getMessageId(), s.getId());
+                return sendAndStore(bot, chatId, s, morningPost, eveningPost, text, kb, record);
+            }
+            log.error("SlotPostService: failed to edit message {} for slot {}: {}", record.getMessageId(), s.getId(), e.getMessage());
+            throw e;
+        }
     }
 
     public void sendReminder(TelegramLongPollingBot bot,
@@ -186,45 +169,70 @@ public class SlotPostService {
         return statusIcon + " " + name;
     }
 
-    private GroupShiftMessage updateExisting(GroupShiftMessage existing,
-                                             Integer newMessageId,
-                                             boolean morningPost,
-                                             boolean eveningPost) {
+    private Message sendAndStore(TelegramLongPollingBot bot,
+                                 Long chatId,
+                                 SlotDTO slot,
+                                 boolean morningPost,
+                                 boolean eveningPost,
+                                 String text,
+                                 InlineKeyboardMarkup kb) throws Exception {
+        return sendAndStore(bot, chatId, slot, morningPost, eveningPost, text, kb, null);
+    }
+
+    private Message sendAndStore(TelegramLongPollingBot bot,
+                                 Long chatId,
+                                 SlotDTO slot,
+                                 boolean morningPost,
+                                 boolean eveningPost,
+                                 String text,
+                                 InlineKeyboardMarkup kb,
+                                 GroupShiftMessage existing) throws Exception {
+        SendMessage sm = new SendMessage(chatId.toString(), text);
+        sm.setReplyMarkup(kb);
+
+        Message sent = bot.execute(sm);
+
+        GroupShiftMessage record = existing != null ? existing : GroupShiftMessage.builder()
+                .chatId(chatId)
+                .slotId(slot.getId())
+                .build();
+
+        storeUpdated(record, sent.getMessageId(), morningPost, eveningPost);
+        return sent;
+    }
+
+    private Message executeEdit(TelegramLongPollingBot bot,
+                                Long chatId,
+                                Integer messageId,
+                                String newText,
+                                InlineKeyboardMarkup markup) throws TelegramApiException {
+        EditMessageText edit = EditMessageText.builder()
+                .chatId(chatId.toString())
+                .messageId(messageId)
+                .text(newText)
+                .replyMarkup(markup)
+                .build();
+
+        return bot.execute(edit);
+    }
+
+    private void storeUpdated(GroupShiftMessage existing,
+                              Integer newMessageId,
+                              boolean morningPost,
+                              boolean eveningPost) {
         existing.setMessageId(newMessageId);
         existing.setPostedAt(LocalDateTime.now());
         existing.setMorningPost(morningPost);
         existing.setEveningPost(eveningPost);
-        return existing;
+
+        shiftMsgRepo.save(existing);
     }
 
-    private Message tryEditExistingPost(TelegramLongPollingBot bot,
-                                        Long chatId,
-                                        Integer messageId,
-                                        String newText,
-                                        InlineKeyboardMarkup markup) {
-        try {
-            EditMessageText edit = EditMessageText.builder()
-                    .chatId(chatId.toString())
-                    .messageId(messageId)
-                    .text(newText)
-                    .replyMarkup(markup)
-                    .build();
-
-            return bot.execute(edit);
-        } catch (Exception e) {
-            log.warn("Failed to edit existing slot post {}: {}", messageId, e.getMessage());
-            return null;
-        }
-    }
-
-    private void cleanupOldPost(TelegramLongPollingBot bot,
-                                Long chatId,
-                                Integer oldMessageId,
-                                Integer newMessageId) {
-        if (oldMessageId == null || Objects.equals(oldMessageId, newMessageId)) {
-            return;
-        }
-
-        cleaner.deleteNow(bot, chatId, oldMessageId);
+    private boolean isMessageMissing(TelegramApiException e) {
+        Integer code = e.getErrorCode();
+        String response = Optional.ofNullable(e.getApiResponse()).orElse("");
+        String description = Optional.ofNullable(e.getMessage()).orElse("");
+        String payload = (response + " " + description).toLowerCase();
+        return Objects.equals(code, 400) && (payload.contains("message to edit not found") || payload.contains("message to delete not found") || payload.contains("message is not modified"));
     }
 }
