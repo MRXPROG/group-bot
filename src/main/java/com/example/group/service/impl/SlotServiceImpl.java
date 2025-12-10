@@ -29,6 +29,11 @@ public class SlotServiceImpl implements SlotService {
         LocalTime end = req.getEndTime();
         String placeText = normalize(req.getPlaceText());
 
+        if ((placeText == null || placeText.isBlank()) && start == null && end == null && date == null) {
+            log.info("No usable parameters in shift request: {}", req);
+            return Optional.empty();
+        }
+
         log.info("Searching slot: date={}, time={}–{}, place='{}'",
                 date, start, end, placeText);
 
@@ -45,7 +50,7 @@ public class SlotServiceImpl implements SlotService {
                 .max((a, b) -> Double.compare(a.score(), b.score()))
                 .orElse(null);
 
-        if (bestMatch == null || bestMatch.score() <= 0.15) {
+        if (bestMatch == null) {
             log.info("No sufficiently similar slot found for place='{}' time={}–{}", placeText, start, end);
             return Optional.empty();
         }
@@ -121,42 +126,55 @@ public class SlotServiceImpl implements SlotService {
                 .filter(t -> t.length() > 1)
                 .toList();
 
-        double placeScore;
-        if (userTokens.isEmpty()) {
-            placeScore = 0.5; // без локации опираемся на время
-        } else {
-            placeScore = similarityScore(userTokens, normalize(slot.getPlaceName()));
+        double placeWeight = userTokens.isEmpty() ? 0.0 : 0.5;
+        double timeWeight = (expectedStart != null || expectedEnd != null) ? 0.4 : 0.0;
+        double dateWeight = 0.1; // дата всегда влияет слегка, чтобы выбирать ближайшую смену
+
+        double weightSum = placeWeight + timeWeight + dateWeight;
+        if (weightSum == 0) {
+            return new SlotScore(slot, 0.0);
         }
 
-        double timeScore = timeSimilarity(expectedStart, expectedEnd, slot.getStart().toLocalTime(), slot.getEnd().toLocalTime());
+        double placeScore = placeWeight > 0 ? similarityScore(userTokens, normalize(slot.getPlaceName())) : 0.0;
+        double timeScore = timeWeight > 0 ? timeSimilarity(expectedStart, expectedEnd, slot.getStart().toLocalTime(), slot.getEnd().toLocalTime()) : 0.0;
         double dateScore = dateSimilarity(expectedDate, slot.getStart().toLocalDate());
 
-        // вес локации чуть выше, чтобы совпадающая локация с небольшой ошибкой времени выигрывала
-        double total = placeScore * 0.55 + timeScore * 0.35 + dateScore * 0.10;
+        double total = (placeScore * placeWeight + timeScore * timeWeight + dateScore * dateWeight) / weightSum;
 
-        log.debug("Slot {} placeScore={} timeScore={} total={}", slot.getId(), placeScore, timeScore, total);
+        log.debug("Slot {} placeScore={} timeScore={} dateScore={} total={}", slot.getId(), placeScore, timeScore, dateScore, total);
 
         return new SlotScore(slot, total);
     }
 
     private double timeSimilarity(LocalTime expectedStart, LocalTime expectedEnd, LocalTime slotStart, LocalTime slotEnd) {
-        if (expectedStart == null || expectedEnd == null) {
+        if (expectedStart == null && expectedEnd == null) {
             return 0.0;
         }
 
-        long startDiff = Math.abs(java.time.Duration.between(expectedStart, slotStart).toMinutes());
-        long endDiff = Math.abs(java.time.Duration.between(expectedEnd, slotEnd).toMinutes());
+        double scoreSum = 0.0;
+        int parts = 0;
 
-        // Принимаем небольшие расхождения до 3 часов, дальше считаем совсем неподходящим
-        double startScore = 1.0 - Math.min(startDiff, 180) / 180.0;
-        double endScore = 1.0 - Math.min(endDiff, 180) / 180.0;
+        if (expectedStart != null) {
+            long startDiff = Math.abs(java.time.Duration.between(expectedStart, slotStart).toMinutes());
+            scoreSum += 1.0 - Math.min(startDiff, 240) / 240.0;
+            parts++;
+        }
 
-        // если временные интервалы пересекаются — бонус
-        boolean overlaps = !(slotEnd.isBefore(expectedStart) || slotStart.isAfter(expectedEnd));
-        double overlapBonus = overlaps ? 0.1 : 0.0;
+        if (expectedEnd != null) {
+            long endDiff = Math.abs(java.time.Duration.between(expectedEnd, slotEnd).toMinutes());
+            scoreSum += 1.0 - Math.min(endDiff, 240) / 240.0;
+            parts++;
+        }
 
-        double base = (startScore + endScore) / 2.0 + overlapBonus;
-        return Math.min(base, 1.0);
+        double base = scoreSum / parts;
+        if (expectedStart != null && expectedEnd != null) {
+            boolean overlaps = !(slotEnd.isBefore(expectedStart) || slotStart.isAfter(expectedEnd));
+            if (overlaps) {
+                base = Math.min(1.0, base + 0.1);
+            }
+        }
+
+        return base;
     }
 
     private double dateSimilarity(LocalDate expectedDate, LocalDate slotDate) {
