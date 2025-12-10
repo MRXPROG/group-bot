@@ -31,7 +31,7 @@ public class PatternParser {
     );
 
     private static final Pattern TIME_FROM_TO = Pattern.compile(
-            "(?iu)(?:[ззcс]\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\s*(?:до|to|по|till)\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
+            "(?iu)(?:[ззcс]\\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\\s*(?<!\\p{L})(?:до|to|по|till)(?!\\p{L})\\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
     );
     private static final Pattern INLINE_NAME = Pattern.compile(
             "(?iu)([\\p{L}\\p{M}'’-]{2,}\\s+[\\p{L}\\p{M}'’-]{2,}(?:\\s+[\\p{L}\\p{M}'’-]{2,})?)"
