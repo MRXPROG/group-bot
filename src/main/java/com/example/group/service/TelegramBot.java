@@ -315,9 +315,15 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         if (state.getSlots().size() == 1) {
             requestCache.remove(token);
-            startBookingFlow(state, state.getSlots().get(0), state.getUserMessage());
-            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
-            answer(cbq.getId(), "✅ Створюю заявку");
+            try {
+                startBookingFlow(state, state.getSlots().get(0), state.getUserMessage());
+                answer(cbq.getId(), "✅ Створюю заявку");
+            } catch (Exception e) {
+                log.error("Failed to start booking flow: {}", e.getMessage());
+                answer(cbq.getId(), "❌ Не вийшло створити заявку. Спробуй пізніше.");
+            } finally {
+                cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+            }
             return;
         }
 
@@ -352,9 +358,15 @@ public class TelegramBot extends TelegramLongPollingBot {
         if ("BOOK".equalsIgnoreCase(action)) {
             requestCache.remove(token);
             SlotDTO slot = state.getSlots().get(state.getCurrentIndex());
-            startBookingFlow(state, slot, state.getUserMessage());
-            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
-            answer(cbq.getId(), "✅ Створюю заявку");
+            try {
+                startBookingFlow(state, slot, state.getUserMessage());
+                answer(cbq.getId(), "✅ Створюю заявку");
+            } catch (Exception e) {
+                log.error("Failed to start booking flow: {}", e.getMessage());
+                answer(cbq.getId(), "❌ Не вийшло створити заявку. Спробуй пізніше.");
+            } finally {
+                cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+            }
             return;
         }
 
