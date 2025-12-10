@@ -27,7 +27,7 @@ public class PatternParser {
 
     private static final Pattern TIME_FOUR_PARTS = Pattern.compile("(?iu)(\\d{1,2}[:.]\\d{2})[:.]?(\\d{1,2}[:.]\\d{2})");
     private static final Pattern TIME_RANGE = Pattern.compile(
-            "(?iu)(?:[ззcс]\\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\\s*[–—:]\\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
+            "(?iu)(?:[ззcс]\\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\\s*[–—:\\-]\\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
     );
 
     private static final Pattern TIME_FROM_TO = Pattern.compile(
@@ -253,11 +253,16 @@ public class PatternParser {
                 continue;
             }
 
-            if (looksLikeName(cleaned)) {
+            boolean hasLocationToken = stopWordService.containsAnyLocationToken(cleaned);
+            boolean nameLike = looksLikeName(cleaned);
+
+            if (nameLike && !hasLocationToken) {
                 continue;
             }
 
-            placeParts.add(cleaned);
+            if (hasLocationToken || !nameLike) {
+                placeParts.add(cleaned);
+            }
         }
 
         if (placeParts.isEmpty()) {
