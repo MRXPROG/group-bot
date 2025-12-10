@@ -53,7 +53,7 @@ public class PatternParser {
         boolean hasLocationToken = stopWordService.containsAnyLocationToken(normalizedText);
 
         String name = extractName(normalizedText, null);
-        String placeText = hasLocationToken ? extractPlace(lines, name) : null;
+        String placeText = extractPlace(lines, name);
 
         if (name == null && placeText != null) {
             name = extractName(normalizedText, placeText);
@@ -71,7 +71,7 @@ public class PatternParser {
             return Optional.empty();
         }
 
-        if (!hasLocationToken && !(hasName && hasDateOrTime)) {
+        if (!hasLocationToken && placeText == null && !hasName) {
             return Optional.empty();
         }
 
