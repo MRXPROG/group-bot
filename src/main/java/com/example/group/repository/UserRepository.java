@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    List<User> findTop10ByScoreNotNullOrderByScoreDesc();
+    List<User> findTop10ByScorePointsEmptyOrderByScorePointsDesc();
 }

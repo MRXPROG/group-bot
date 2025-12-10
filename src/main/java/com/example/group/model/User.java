@@ -27,7 +27,7 @@ public class User {
 
     private String phone;
 
-    private Integer score;
+    private Integer scorePoints;
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY)
     private Inn inn;

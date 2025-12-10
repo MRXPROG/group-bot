@@ -22,13 +22,13 @@ public class JpaShiftStatsService implements ShiftStatsService {
     @Override
     public List<UserShiftCount> getLeaderboard() {
         log.debug("Loading leaderboard from persistent users");
-        return userRepository.findTop10ByScoreNotNullOrderByScoreDesc()
+        return userRepository.findTop10ByScorePointsEmptyOrderByScorePointsDesc()
                 .stream()
                 .map(user -> new UserShiftCount(
                         user.getId(),
                         user.getFirstName(),
                         user.getLastName(),
-                        Optional.ofNullable(user.getScore()).orElse(0)
+                        Optional.ofNullable(user.getScorePoints()).orElse(0)
                 ))
                 .toList();
     }
