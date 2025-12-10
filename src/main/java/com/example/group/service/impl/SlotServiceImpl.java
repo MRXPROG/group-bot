@@ -32,16 +32,16 @@ public class SlotServiceImpl implements SlotService {
         log.info("Searching slot: date={}, time={}–{}, place='{}'",
                 date, start, end, placeText);
 
-        // 1) Загружаем ВСЕ слоты на эту дату от основного микросервиса
-        List<SlotDTO> slots = api.getSlotsForDate(date);
+        // 1) Загружаем слоты: по конкретной дате, либо все ближайшие, если дата не указана
+        List<SlotDTO> slots = date != null ? api.getSlotsForDate(date) : api.getUpcomingSlots();
         if (slots.isEmpty()) {
-            log.info("No slots available for date {}", date);
+            log.info("No slots available for {}", date != null ? "date " + date : "upcoming schedule");
             return Optional.empty();
         }
 
-        // 2) Оцениваем похожесть по месту и времени и выбираем лучший слот
+        // 2) Оцениваем похожесть по месту, времени и (если есть) дате и выбираем лучший слот
         SlotScore bestMatch = slots.stream()
-                .map(slot -> scoreSlot(slot, placeText, start, end))
+                .map(slot -> scoreSlot(slot, placeText, start, end, date))
                 .max((a, b) -> Double.compare(a.score(), b.score()))
                 .orElse(null);
 
@@ -116,7 +116,7 @@ public class SlotServiceImpl implements SlotService {
         return matched / (double) userTokens.size();
     }
 
-    private SlotScore scoreSlot(SlotDTO slot, String placeText, LocalTime expectedStart, LocalTime expectedEnd) {
+    private SlotScore scoreSlot(SlotDTO slot, String placeText, LocalTime expectedStart, LocalTime expectedEnd, LocalDate expectedDate) {
         List<String> userTokens = Arrays.stream(placeText.split("\\s+"))
                 .filter(t -> t.length() > 1)
                 .toList();
@@ -129,9 +129,10 @@ public class SlotServiceImpl implements SlotService {
         }
 
         double timeScore = timeSimilarity(expectedStart, expectedEnd, slot.getStart().toLocalTime(), slot.getEnd().toLocalTime());
+        double dateScore = dateSimilarity(expectedDate, slot.getStart().toLocalDate());
 
         // вес локации чуть выше, чтобы совпадающая локация с небольшой ошибкой времени выигрывала
-        double total = placeScore * 0.6 + timeScore * 0.4;
+        double total = placeScore * 0.55 + timeScore * 0.35 + dateScore * 0.10;
 
         log.debug("Slot {} placeScore={} timeScore={} total={}", slot.getId(), placeScore, timeScore, total);
 
@@ -156,6 +157,16 @@ public class SlotServiceImpl implements SlotService {
 
         double base = (startScore + endScore) / 2.0 + overlapBonus;
         return Math.min(base, 1.0);
+    }
+
+    private double dateSimilarity(LocalDate expectedDate, LocalDate slotDate) {
+        if (expectedDate == null) {
+            long diffDays = Math.abs(java.time.Duration.between(slotDate.atStartOfDay(), LocalDate.now().atStartOfDay()).toDays());
+            double freshness = 1.0 - Math.min(diffDays, 14) / 14.0; // от 1.0 (сегодня) до 0.0 (две недели и дальше)
+            return Math.max(freshness, 0.0);
+        }
+
+        return expectedDate.equals(slotDate) ? 1.0 : 0.0;
     }
 
     private record SlotScore(SlotDTO slot, double score) {}

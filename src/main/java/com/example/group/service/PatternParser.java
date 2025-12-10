@@ -18,14 +18,14 @@ import java.util.regex.Pattern;
 @Component
 public class PatternParser {
 
-    // Обнаружение времени: "18-23", "09:00 — 17:00", "з 8 до 12", "з 18:00 до 24"
+    // Обнаружение времени: "18-23", "09:00 — 17:00", "з 8 до 12", "з 18:00 до 24", "07:00:14:00"
     private static final Pattern TIME_PATTERN = Pattern.compile(
-            "(?iu)(?:[ззcс]\s*)?(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–—])\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
+            "(?iu)(?:[ззcс]\\s*)?(\\d{1,2})(?:[:.-](\\d{1,2}))?\\s*(?:до|[-–—]|:)\\s*(\\d{1,2})(?:[:.-](\\d{1,2}))?"
     );
 
-    // Обнаружение даты: 9.12, 09/12, 9.12.2025
+    // Обнаружение даты: 9.12, 09/12, 9.12.2025, 06.12(сб)
     private static final Pattern DATE_PATTERN = Pattern.compile(
-            "(\\d{1,2})[./](\\d{1,2})(?:[./](\\d{2,4}))?"
+            "(\\d{1,2})[./](\\d{1,2})(?:[./](\\d{2,4}))?(?:\\s*\\([^)]*\\))?"
     );
 
     // Имя: минимум 2 слова, начинаются с букв (чтобы избежать эмодзи и пунктуации)
@@ -148,7 +148,7 @@ public class PatternParser {
             name = extractNameFromText(String.join(" ", lines));
         }
 
-        if (date == null || start == null || end == null || name == null) {
+        if (start == null || end == null || name == null) {
             log.debug("Failed to detect required fields: date={}, time={}, name={}", date, start, name);
             return Optional.empty();
         }
