@@ -55,8 +55,16 @@ public class SlotServiceImpl implements SlotService {
             return new SlotMatchResult(List.of());
         }
 
+        double bestScore = ranked.get(0).score();
+
+        // Keep slots that are either good enough on an absolute scale (0.35)
+        // or reasonably close to the best match (>= 70%). This allows the user
+        // to choose between several similar options instead of always getting
+        // a single auto-selected slot.
+        double dynamicThreshold = Math.max(0.35, bestScore * 0.7);
+
         List<SlotDTO> matches = ranked.stream()
-                .filter(score -> score.score() >= 0.35)
+                .filter(score -> score.score() >= dynamicThreshold)
                 .map(SlotScore::slot)
                 .toList();
 
