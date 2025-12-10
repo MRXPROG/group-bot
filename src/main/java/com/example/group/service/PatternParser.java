@@ -189,7 +189,10 @@ public class PatternParser {
         String best = null;
         while (matcher.find()) {
             String candidate = matcher.group(1).trim();
-            if (candidate.split("\\s+").length < 2) {
+            candidate = candidate.replaceAll("^[,\-\\s]+|[,\-\\s]+$", "");
+
+            String[] parts = candidate.split("\\s+");
+            if (parts.length < 2 || parts.length > 3) {
                 continue;
             }
             if (candidate.matches(".*\\d.*")) {
