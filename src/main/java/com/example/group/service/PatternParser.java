@@ -74,6 +74,16 @@ public class PatternParser {
         ));
     }
 
+    public Optional<String> extractNameOnly(String rawText) {
+        if (rawText == null || rawText.isBlank()) {
+            return Optional.empty();
+        }
+
+        String normalizedText = normalize(rawText);
+        String name = extractName(normalizedText, null);
+        return Optional.ofNullable(blankToNull(name));
+    }
+
     public boolean isLikelyShiftRequest(String text) {
         return parse(text)
                 .map(req -> req.getDate() != null

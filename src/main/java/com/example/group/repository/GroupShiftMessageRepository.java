@@ -11,6 +11,8 @@ public interface GroupShiftMessageRepository extends JpaRepository<GroupShiftMes
 
     Optional<GroupShiftMessage> findByChatIdAndSlotId(Long chatId, Long slotId);
 
+    Optional<GroupShiftMessage> findByChatIdAndMessageId(Long chatId, Integer messageId);
+
     List<GroupShiftMessage> findAllBySlotId(Long slotId);
 
     List<GroupShiftMessage> findAllByChatId(Long chatId);
