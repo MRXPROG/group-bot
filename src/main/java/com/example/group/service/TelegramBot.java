@@ -127,12 +127,15 @@ public class TelegramBot extends TelegramLongPollingBot {
         var req = parsedOpt.get();
         log.info("Pattern recognized from {} => {}", userId, req);
 
+        Runnable cleanupUserMessage = () -> cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);
+
         if (!hasValidName(req)) {
             Message reply = execute(new SendMessage(
                     chatId.toString(),
                     "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            cleanupUserMessage.run();
             return;
         }
 
@@ -143,6 +146,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     "⚠️ Не знайшов такої зміни. Перевір, чи все ввів правильно"
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            cleanupUserMessage.run();
             return;
         }
 
@@ -152,6 +156,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     "ℹ️ Знайшлось кілька схожих змін. Напиши повідомлення ще раз з уточненням місця чи часу."
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            cleanupUserMessage.run();
             return;
         }
 

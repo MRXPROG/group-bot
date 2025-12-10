@@ -49,10 +49,11 @@ public class PatternParser {
                 .filter(s -> !s.isBlank())
                 .toList();
 
+        String preliminaryPlace = extractPlace(lines, null);
+        String name = extractName(normalizedText, preliminaryPlace);
+        String placeText = extractPlace(lines, name);
         LocalDate date = extractDate(normalizedText);
         TimeRange timeRange = extractTime(normalizedText);
-        String name = extractName(normalizedText);
-        String placeText = extractPlace(lines, name);
 
         boolean hasAny = date != null || timeRange.start != null || timeRange.end != null
                 || (placeText != null && !placeText.isBlank()) || name != null;
@@ -202,7 +203,7 @@ public class PatternParser {
         return startSimple && endSimple;
     }
 
-    private String extractName(String text) {
+    private String extractName(String text, String placeText) {
         Matcher matcher = INLINE_NAME.matcher(text);
         String best = null;
         int bestPos = -1;
@@ -218,7 +219,7 @@ public class PatternParser {
             if (candidate.matches(".*\\d.*")) {
                 continue;
             }
-            if (containsStopWord(parts)) {
+            if (containsStopWord(parts) || insidePlace(candidate, placeText) || allStopWords(parts)) {
                 continue;
             }
 
@@ -287,6 +288,20 @@ public class PatternParser {
     private boolean containsStopWord(String[] parts) {
         return Arrays.stream(parts)
                 .anyMatch(stopWordService::isStopWordToken);
+    }
+
+    private boolean allStopWords(String[] parts) {
+        return Arrays.stream(parts)
+                .allMatch(stopWordService::isStopWordToken);
+    }
+
+    private boolean insidePlace(String candidate, String placeText) {
+        if (candidate == null || placeText == null) {
+            return false;
+        }
+        String normalizedCandidate = candidate.toLowerCase(Locale.ROOT).trim();
+        String normalizedPlace = placeText.toLowerCase(Locale.ROOT);
+        return normalizedPlace.contains(normalizedCandidate);
     }
 
     private String blankToNull(String value) {
