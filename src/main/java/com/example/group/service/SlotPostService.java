@@ -161,7 +161,7 @@ public class SlotPostService {
     }
 
     private String wrapInCollapsedComment(String text) {
-        return "<blockquote expandable>" + "text" + "</blockquote>";
+        return "<blockquote expandable>" + text + "</blockquote>";
     }
 
     private Message sendAndStore(TelegramLongPollingBot bot,

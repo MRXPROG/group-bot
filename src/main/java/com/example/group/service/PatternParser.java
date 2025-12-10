@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Year;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
@@ -27,8 +28,9 @@ public class PatternParser {
 
     private static final Pattern TIME_FOUR_PARTS = Pattern.compile("(?iu)(\\d{1,2}[:.]\\d{2})[:.]?(\\d{1,2}[:.]\\d{2})");
     private static final Pattern TIME_RANGE = Pattern.compile(
-            "(?iu)(?:[ззcс]\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\s*[–—\-:]\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
+            "(?iu)(?:[ззcс]\\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\\s*[–—:]\\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
     );
+
     private static final Pattern TIME_FROM_TO = Pattern.compile(
             "(?iu)(?:[ззcс]\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\s*(?:до|to|по|till)\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
     );
@@ -189,7 +191,7 @@ public class PatternParser {
         String best = null;
         while (matcher.find()) {
             String candidate = matcher.group(1).trim();
-            candidate = candidate.replaceAll("^[,\-\\s]+|[,\-\\s]+$", "");
+            candidate = candidate.replaceAll("^[,-,\\s]+|[,-,\\s]+$", "");
 
             String[] parts = candidate.split("\\s+");
             if (parts.length < 2 || parts.length > 3) {
