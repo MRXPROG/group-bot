@@ -3,6 +3,7 @@ package com.example.group.service.impl;
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.ParsedShiftRequest;
 import com.example.group.dto.SlotDTO;
+import com.example.group.service.SlotMatchResult;
 import com.example.group.service.SlotService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
+import java.util.Comparator;
 
 @Slf4j
 @Service
@@ -22,7 +23,7 @@ public class SlotServiceImpl implements SlotService {
     private final MainBotApiClient api; // сервис общения с основным ботом
 
     @Override
-    public Optional<SlotDTO> findMatchingSlot(ParsedShiftRequest req) {
+    public SlotMatchResult findMatchingSlot(ParsedShiftRequest req) {
 
         LocalDate date = req.getDate();
         LocalTime start = req.getStartTime();
@@ -31,7 +32,7 @@ public class SlotServiceImpl implements SlotService {
 
         if ((placeText == null || placeText.isBlank()) && start == null && end == null && date == null) {
             log.info("No usable parameters in shift request: {}", req);
-            return Optional.empty();
+            return new SlotMatchResult(null, false);
         }
 
         log.info("Searching slot: date={}, time={}–{}, place='{}'",
@@ -41,22 +42,33 @@ public class SlotServiceImpl implements SlotService {
         List<SlotDTO> slots = date != null ? api.getSlotsForDate(date) : api.getUpcomingSlots();
         if (slots.isEmpty()) {
             log.info("No slots available for {}", date != null ? "date " + date : "upcoming schedule");
-            return Optional.empty();
+            return new SlotMatchResult(null, false);
         }
 
         // 2) Оцениваем похожесть по месту, времени и (если есть) дате и выбираем лучший слот
-        SlotScore bestMatch = slots.stream()
+        var ranked = slots.stream()
                 .map(slot -> scoreSlot(slot, placeText, start, end, date))
-                .max((a, b) -> Double.compare(a.score(), b.score()))
-                .orElse(null);
+                .sorted(Comparator.comparingDouble(SlotScore::score).reversed())
+                .toList();
 
-        if (bestMatch == null) {
-            log.info("No sufficiently similar slot found for place='{}' time={}–{}", placeText, start, end);
-            return Optional.empty();
+        if (ranked.isEmpty()) {
+            return new SlotMatchResult(null, false);
         }
 
-        // 3) Возвращаем лучший найденный вариант
-        return Optional.of(bestMatch.slot());
+        SlotScore bestMatch = ranked.get(0);
+        SlotScore second = ranked.size() > 1 ? ranked.get(1) : null;
+
+        if (bestMatch == null || bestMatch.score() < 0.35) {
+            log.info("No sufficiently similar slot found for place='{}' time={}–{}", placeText, start, end);
+            return new SlotMatchResult(null, false);
+        }
+
+        boolean ambiguous = second != null
+                && second.score() >= 0.35
+                && Math.abs(bestMatch.score() - second.score()) < 0.12;
+
+        // 3) Возвращаем лучший найденный вариант и признак неоднозначности
+        return new SlotMatchResult(bestMatch.slot(), ambiguous);
     }
 
     // ------------------ Вспомогательные методы ------------------

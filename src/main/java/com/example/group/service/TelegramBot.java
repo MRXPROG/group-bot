@@ -1,6 +1,7 @@
 package com.example.group.service;
 
 import com.example.group.config.BotConfig;
+import com.example.group.dto.ParsedShiftRequest;
 import com.example.group.dto.SlotDTO;
 import com.example.group.service.BotSettingsService;
 import com.example.group.service.util.MessageCleaner;
@@ -126,8 +127,17 @@ public class TelegramBot extends TelegramLongPollingBot {
         var req = parsedOpt.get();
         log.info("Pattern recognized from {} => {}", userId, req);
 
-        var slotOpt = slotService.findMatchingSlot(req);
-        if (slotOpt.isEmpty()) {
+        if (!hasValidName(req)) {
+            Message reply = execute(new SendMessage(
+                    chatId.toString(),
+                    "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
+            ));
+            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            return;
+        }
+
+        var matchResult = slotService.findMatchingSlot(req);
+        if (!matchResult.found()) {
             Message reply = execute(new SendMessage(
                     chatId.toString(),
                     "⚠️ Не знайшов такої зміни. Перевір, чи все ввів правильно"
@@ -136,7 +146,25 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        bookingFlow.startFlowInGroup(this, msg, slotOpt.get(), req.getUserFullName());
+        if (matchResult.ambiguous()) {
+            Message reply = execute(new SendMessage(
+                    chatId.toString(),
+                    "ℹ️ Знайшлось кілька схожих змін. Напиши повідомлення ще раз з уточненням місця чи часу."
+            ));
+            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            return;
+        }
+
+        bookingFlow.startFlowInGroup(this, msg, matchResult.slot(), req.getUserFullName());
+    }
+
+    private boolean hasValidName(ParsedShiftRequest req) {
+        String name = req.getUserFullName();
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        String[] parts = name.trim().split("\\s+");
+        return parts.length >= 2;
     }
 
     @SneakyThrows
