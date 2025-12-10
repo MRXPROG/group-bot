@@ -39,7 +39,7 @@ public class MorningScheduler {
                 .filter(slot -> !slot.getStart().toLocalDate().isBefore(tomorrow))
                 .forEach(slot -> {
                     try {
-                        slotPostService.publishSlotPost(bot, groupChatId, slot, true, false);
+                        slotPostService.publishSlotPost(bot, groupChatId, slot, true, false, true);
                     } catch (Exception e) {
                         log.error("Failed to publish slot {}: {}", slot.getId(), e.getMessage());
                     }

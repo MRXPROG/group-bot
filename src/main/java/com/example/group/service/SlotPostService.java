@@ -44,6 +44,15 @@ public class SlotPostService {
                                                 SlotDTO s,
                                                 boolean morningPost,
                                                 boolean eveningPost) throws Exception {
+        return publishSlotPost(bot, chatId, s, morningPost, eveningPost, false);
+    }
+
+    public synchronized Message publishSlotPost(TelegramLongPollingBot bot,
+                                                Long chatId,
+                                                SlotDTO s,
+                                                boolean morningPost,
+                                                boolean eveningPost,
+                                                boolean forceNewPost) throws Exception {
         String date = s.getStart().toLocalDate().format(DATE);
         String day = s.getStart().toLocalDate().format(DAY_OF_WEEK);
         String time = s.getStart().toLocalTime().format(TIME) + " - " +
@@ -85,8 +94,8 @@ public class SlotPostService {
 
         Optional<GroupShiftMessage> existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
 
-        if (existingOpt.isEmpty()) {
-            return sendAndStore(bot, chatId, s, morningPost, eveningPost, text, kb);
+        if (existingOpt.isEmpty() || forceNewPost) {
+            return sendAndStore(bot, chatId, s, morningPost, eveningPost, text, kb, existingOpt.orElse(null));
         }
 
         GroupShiftMessage record = existingOpt.get();
