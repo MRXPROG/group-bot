@@ -371,7 +371,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 log.error("Failed to start booking flow: {}", e.getMessage());
                 answer(cbq.getId(), "❌ Не вийшло створити заявку. Спробуй пізніше.");
             } finally {
-                cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+                cleaner.deleteNow(this, state.getChatId(), cbq.getMessage().getMessageId());
             }
             return;
         }
@@ -379,7 +379,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if ("CANCEL".equalsIgnoreCase(action)) {
             requestCache.remove(token);
             answer(cbq.getId(), "Скасовано");
-            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 5);
+            cleaner.deleteNow(this, state.getChatId(), cbq.getMessage().getMessageId());
             return;
         }
 
