@@ -208,7 +208,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         }
 
         String[] parts = Arrays.stream(fullName.trim().split("\\s+")).filter(s -> !s.isBlank()).toArray(String[]::new);
-        if (parts.length < 2) {
+        if (parts.length < 2 || parts.length > 3) {
             return new NameParts(null, null);
         }
 
