@@ -153,7 +153,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     chatId.toString(),
                     "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
             ));
-            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            cleaner.deleteLater(this, chatId, reply.getMessageId(), 5);
             cleanupUserMessage.run();
             return;
         }
@@ -173,12 +173,38 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private boolean hasValidName(ParsedShiftRequest req) {
-        String name = req.getUserFullName();
+        return hasValidName(req.getUserFullName());
+    }
+
+    private boolean hasValidName(String name) {
         if (name == null || name.isBlank()) {
             return false;
         }
         String[] parts = name.trim().split("\\s+");
         return parts.length >= 2;
+    }
+
+    @SneakyThrows
+    private boolean ensureValidNamePresent(BookingRequestCache.BookingRequestState state) {
+        String name = state.getUserFullName();
+        if (!hasValidName(name)) {
+            name = patternParser.extractNameOnly(state.getUserMessage().getText()).orElse(null);
+        }
+
+        if (!hasValidName(name)) {
+            Message reply = execute(new SendMessage(
+                    state.getChatId().toString(),
+                    "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
+            ));
+            cleaner.deleteLater(this, state.getChatId(), reply.getMessageId(), 5);
+            cleaner.deleteLater(this, state.getChatId(), state.getUserMessage().getMessageId(), 5);
+            requestCache.remove(state.getToken());
+            return false;
+        }
+
+        state.setUserFullName(name.trim());
+        requestCache.update(state);
+        return true;
     }
 
     @SneakyThrows
@@ -243,16 +269,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         String name = patternParser.extractNameOnly(msg.getText()).orElse(null);
-        if (name == null || name.isBlank()) {
-            Message reply = execute(new SendMessage(
-                    chatId.toString(),
-                    "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
-            ));
-            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
-            cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);
-            return true;
-        }
-
         askForBookingIntent(msg, name, List.of(slot), msg.getReplyToMessage().getMessageId());
         return true;
     }
@@ -293,7 +309,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         if (stateOpt.isEmpty()) {
             answer(cbq.getId(), "⏳ Час вийшов. Створи нову заявку.");
-            cleaner.deleteLater(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId(), 5);
+            cleaner.deleteNow(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId());
             return;
         }
 
@@ -303,14 +319,20 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
+        cleaner.deleteNow(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId());
+
         if ("NO".equalsIgnoreCase(decision)) {
             requestCache.remove(token);
             answer(cbq.getId(), "Добре, нічого не роблю.");
-            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 5);
             return;
         }
 
-        state.setControlMessageId(cbq.getMessage().getMessageId());
+        if (!ensureValidNamePresent(state)) {
+            answer(cbq.getId(), "ℹ️ Додай ім'я та прізвище у повідомленні");
+            return;
+        }
+
+        state.setControlMessageId(null);
         requestCache.update(state);
 
         if (state.getSlots().size() == 1) {
@@ -321,8 +343,6 @@ public class TelegramBot extends TelegramLongPollingBot {
             } catch (Exception e) {
                 log.error("Failed to start booking flow: {}", e.getMessage());
                 answer(cbq.getId(), "❌ Не вийшло створити заявку. Спробуй пізніше.");
-            } finally {
-                cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
             }
             return;
         }
@@ -401,20 +421,29 @@ public class TelegramBot extends TelegramLongPollingBot {
         int total = state.getSlots().size();
         int index = state.getCurrentIndex() + 1;
 
-        EditMessageText edit = new EditMessageText();
-        edit.setChatId(state.getChatId().toString());
-        edit.setMessageId(state.getControlMessageId() != null
-                ? state.getControlMessageId()
-                : cbq.getMessage().getMessageId());
-        edit.setText(formatSlot(slot, index, total, state.getUserFullName()));
-        edit.setReplyMarkup(buildSlotNavigationKeyboard(state.getToken(), total));
+        String text = formatSlot(slot, index, total, state.getUserFullName());
 
-        Message edited = execute(edit);
-        state.setControlMessageId(edited.getMessageId());
+        if (state.getControlMessageId() == null) {
+            SendMessage message = new SendMessage(state.getChatId().toString(), text);
+            message.setReplyMarkup(buildSlotNavigationKeyboard(state.getToken(), total));
+            Message sent = execute(message);
+            state.setControlMessageId(sent.getMessageId());
+        } else {
+            EditMessageText edit = new EditMessageText();
+            edit.setChatId(state.getChatId().toString());
+            edit.setMessageId(state.getControlMessageId());
+            edit.setText(text);
+            edit.setReplyMarkup(buildSlotNavigationKeyboard(state.getToken(), total));
+
+            Message edited = execute(edit);
+            state.setControlMessageId(edited.getMessageId());
+        }
+
         requestCache.update(state);
     }
 
     private String formatSlot(SlotDTO slot, int index, int total, String userFullName) {
+        String displayName = hasValidName(userFullName) ? userFullName : "—";
         String innLine = slot.isInnRequired() ? " • ІПН обов'язковий" : "";
         return ("""
                 Знайшлось %d змін за твоїм запитом.
@@ -432,7 +461,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                         slot.getStart().toLocalTime().format(TIME),
                         slot.getEnd().toLocalTime().format(TIME),
                         innLine,
-                        userFullName
+                        displayName
                 ).trim();
     }
 
