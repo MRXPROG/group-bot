@@ -46,4 +46,22 @@ class PatternParserTest {
 
         assertThat(request.getDate()).isEqualTo(expectedDate);
     }
+
+    @Test
+    void shouldParseNameAndDateWithoutPlaceTokens() {
+        Optional<ParsedShiftRequest> parsed = parser.parse("11.12 Дима Маслов");
+
+        assertThat(parsed).isPresent();
+        ParsedShiftRequest request = parsed.get();
+
+        assertThat(request.getUserFullName()).isEqualTo("Дима Маслов");
+        assertThat(request.getPlaceText()).isNull();
+
+        LocalDate expectedDate = LocalDate.of(LocalDate.now().getYear(), 12, 11);
+        if (expectedDate.isBefore(LocalDate.now().minusDays(1))) {
+            expectedDate = expectedDate.plusYears(1);
+        }
+
+        assertThat(request.getDate()).isEqualTo(expectedDate);
+    }
 }

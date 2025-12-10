@@ -44,24 +44,28 @@ public class PatternParser {
             return Optional.empty();
         }
 
-        if (!stopWordService.containsAnyLocationToken(rawText)) {
-            return Optional.empty();
-        }
-
         String normalizedText = normalize(rawText);
         List<String> lines = Arrays.stream(normalizedText.split("\\r?\\n"))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .toList();
 
-        String preliminaryPlace = extractPlace(lines, null);
+        boolean hasLocationToken = stopWordService.containsAnyLocationToken(normalizedText);
+
+        String preliminaryPlace = hasLocationToken ? extractPlace(lines, null) : null;
         String name = extractName(normalizedText, preliminaryPlace);
-        String placeText = extractPlace(lines, name);
+        String placeText = hasLocationToken ? extractPlace(lines, name) : null;
         LocalDate date = extractDate(normalizedText);
         TimeRange timeRange = extractTime(normalizedText);
 
         boolean hasDateOrTime = date != null || timeRange.start != null || timeRange.end != null;
+        boolean hasName = name != null && !name.isBlank();
+
         if (!hasDateOrTime) {
+            return Optional.empty();
+        }
+
+        if (!hasLocationToken && !(hasName && hasDateOrTime)) {
             return Optional.empty();
         }
 
