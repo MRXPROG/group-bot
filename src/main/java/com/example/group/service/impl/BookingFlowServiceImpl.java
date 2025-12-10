@@ -73,7 +73,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         );
 
         SendMessage sm = new SendMessage(chatId.toString(), text);
-        sm.setReplyToMessageId(msg.getMessageId());
+        sm.setReplyToMessageId(resolveReplyMessageId(chatId, slot.getId(), msg.getMessageId()));
         sm.setReplyMarkup(buildKeyboard(slot.getId(), userId));
 
         try {
@@ -158,7 +158,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                         chatId.toString(),
                         "⏰ Час вийшов. Створи заявку ще раз."
                 );
-                timeoutMsg.setReplyToMessageId(state.getUserMessageId());
+                timeoutMsg.setReplyToMessageId(resolveReplyMessageId(state));
                 Message m = sendWithReplyFallback(bot, timeoutMsg, chatId, state.getSlotId());
                 cleaner.deleteLater(bot, chatId, m.getMessageId(), 15);
             } catch (Exception e) {
@@ -177,9 +177,13 @@ public class BookingFlowServiceImpl implements BookingFlowService {
     }
 
     private Integer resolveReplyMessageId(UserFlowState state) {
-        return shiftMsgRepo.findByChatIdAndSlotId(state.getChatId(), state.getSlotId())
+        return resolveReplyMessageId(state.getChatId(), state.getSlotId(), state.getUserMessageId());
+    }
+
+    private Integer resolveReplyMessageId(Long chatId, Long slotId, Integer fallback) {
+        return shiftMsgRepo.findByChatIdAndSlotId(chatId, slotId)
                 .map(GroupShiftMessage::getMessageId)
-                .orElse(state.getUserMessageId());
+                .orElse(fallback);
     }
 
     private NameParts resolveNames(Message msg, String userFullName) {
