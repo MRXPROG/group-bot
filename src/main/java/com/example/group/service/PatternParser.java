@@ -1,6 +1,7 @@
 package com.example.group.service;
 
 import com.example.group.dto.ParsedShiftRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -11,16 +12,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class PatternParser {
 
     private static final Pattern DATE_DOTTED = Pattern.compile("(?iu)(\\d{1,2})[./](\\d{1,2})(?:[./](\\d{2,4}))?(?:\\s*\\([^)]*\\))?");
@@ -35,8 +33,10 @@ public class PatternParser {
             "(?iu)(?:[ззcс]\s*)?(?<start>\\d{1,2}(?::?\\d{1,2})?)?\s*(?:до|to|по|till)\s*(?<end>\\d{1,2}(?::?\\d{1,2})?)?"
     );
     private static final Pattern INLINE_NAME = Pattern.compile(
-            "(?u)([\\p{Lu}\\p{Lt}][\\p{L}\\p{M}'’-]*\\s+[\\p{Lu}\\p{Lt}][\\p{L}\\p{M}'’-]*(?:\\s+[\\p{L}\\p{M}'’-]+)?)"
+            "(?iu)([\\p{L}\\p{M}'’-]{2,}\\s+[\\p{L}\\p{M}'’-]{2,}(?:\\s+[\\p{L}\\p{M}'’-]{2,})?)"
     );
+
+    private final StopWordService stopWordService;
 
     public Optional<ParsedShiftRequest> parse(String rawText) {
         if (rawText == null || rawText.isBlank()) {
@@ -142,6 +142,11 @@ public class PatternParser {
             while (range.find()) {
                 String startStr = range.group("start");
                 String endStr = range.group("end");
+
+                if (bothTooShort(startStr, endStr)) {
+                    continue;
+                }
+
                 LocalTime start = parseTimeToken(startStr);
                 LocalTime end = parseTimeToken(endStr);
                 if (start != null || end != null) {
@@ -186,9 +191,22 @@ public class PatternParser {
         }
     }
 
+    private boolean bothTooShort(String startStr, String endStr) {
+        if (startStr == null || endStr == null) {
+            return false;
+        }
+
+        boolean startSimple = startStr.length() == 1 && !startStr.contains(":") && !startStr.contains(".");
+        boolean endSimple = endStr.length() == 1 && !endStr.contains(":") && !endStr.contains(".");
+
+        return startSimple && endSimple;
+    }
+
     private String extractName(String text) {
         Matcher matcher = INLINE_NAME.matcher(text);
         String best = null;
+        int bestPos = -1;
+
         while (matcher.find()) {
             String candidate = matcher.group(1).trim();
             candidate = candidate.replaceAll("^[,-,\\s]+|[,-,\\s]+$", "");
@@ -200,8 +218,13 @@ public class PatternParser {
             if (candidate.matches(".*\\d.*")) {
                 continue;
             }
-            if (best == null || candidate.length() > best.length()) {
+            if (containsStopWord(parts)) {
+                continue;
+            }
+
+            if (matcher.start() >= bestPos) {
                 best = candidate;
+                bestPos = matcher.start();
             }
         }
         return best;
@@ -259,6 +282,11 @@ public class PatternParser {
     private boolean looksLikeName(String candidate) {
         Matcher matcher = INLINE_NAME.matcher(candidate);
         return matcher.find() && !candidate.matches(".*\\d.*");
+    }
+
+    private boolean containsStopWord(String[] parts) {
+        return Arrays.stream(parts)
+                .anyMatch(stopWordService::isStopWordToken);
     }
 
     private String blankToNull(String value) {
