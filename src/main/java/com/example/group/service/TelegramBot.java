@@ -238,6 +238,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     "⚠️ Не можу знайти цю зміну. Спробуй іншу."
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);
             return true;
         }
 
@@ -248,6 +249,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);
             return true;
         }
 
@@ -315,10 +317,12 @@ public class TelegramBot extends TelegramLongPollingBot {
             requestCache.remove(token);
             startBookingFlow(state, state.getSlots().get(0), state.getUserMessage());
             cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+            answer(cbq.getId(), "✅ Створюю заявку");
             return;
         }
 
         showSlotChoice(cbq, state);
+        answer(cbq.getId(), "✅");
     }
 
     @SneakyThrows
@@ -350,6 +354,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             SlotDTO slot = state.getSlots().get(state.getCurrentIndex());
             startBookingFlow(state, slot, state.getUserMessage());
             cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+            answer(cbq.getId(), "✅ Створюю заявку");
             return;
         }
 
@@ -369,6 +374,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         requestCache.update(state);
         showSlotChoice(cbq, state);
+        answer(cbq.getId(), "✅");
     }
 
     @SneakyThrows
