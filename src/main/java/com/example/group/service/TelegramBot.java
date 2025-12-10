@@ -351,7 +351,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         if (stateOpt.isEmpty()) {
             answer(cbq.getId(), "⏳ Час вийшов. Створи нову заявку.");
-            cleaner.deleteLater(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId(), 5);
+            cleaner.deleteNow(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId());
             return;
         }
 
@@ -372,6 +372,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 answer(cbq.getId(), "❌ Не вийшло створити заявку. Спробуй пізніше.");
             } finally {
                 cleaner.deleteNow(this, state.getChatId(), cbq.getMessage().getMessageId());
+                cleaner.deleteNow(this, state.getChatId(), state.getUserMessage().getMessageId());
             }
             return;
         }
@@ -380,6 +381,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             requestCache.remove(token);
             answer(cbq.getId(), "Скасовано");
             cleaner.deleteNow(this, state.getChatId(), cbq.getMessage().getMessageId());
+            cleaner.deleteNow(this, state.getChatId(), state.getUserMessage().getMessageId());
             return;
         }
 
@@ -398,7 +400,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     @SneakyThrows
     private void startBookingFlow(BookingRequestCache.BookingRequestState state, SlotDTO slot, Message sourceMessage) {
         bookingFlow.startFlowInGroup(this, sourceMessage, slot, state.getUserFullName());
-        cleaner.deleteLater(this, state.getChatId(), sourceMessage.getMessageId(), 15);
+        cleaner.deleteNow(this, state.getChatId(), sourceMessage.getMessageId());
     }
 
     @SneakyThrows
