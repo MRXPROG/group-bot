@@ -102,8 +102,13 @@ public class PatternParser {
                 .replace('\u2026', ' ')
                 .replace('\u2010', '-')
                 .replace('\u00a0', ' ');
+
         cleaned = cleaned.replaceAll("[\\p{So}\\p{Sk}\\p{Sc}\\p{Sm}]+", " ");
-        cleaned = cleaned.replaceAll("\\s+", " ");
+
+        // Keep line breaks to better separate place/name lines, but collapse all other whitespace noise.
+        cleaned = cleaned.replaceAll("[ \\t\\x0B\\f\\r]+", " ");
+        cleaned = cleaned.replaceAll("\\s*\\n\\s*", "\n");
+
         return cleaned.trim();
     }
 
