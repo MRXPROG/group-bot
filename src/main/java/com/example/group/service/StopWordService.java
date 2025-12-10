@@ -70,6 +70,27 @@ public class StopWordService {
         return stopWords.stream().anyMatch(sw -> sw.contains(normalized) || normalized.contains(sw));
     }
 
+    public boolean containsAnyLocationToken(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+
+        String normalized = normalize(text);
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        for (String token : normalized.split("\\s+")) {
+            if (token.isBlank()) {
+                continue;
+            }
+            if (isStopWordToken(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public Set<String> snapshot() {
         return Collections.unmodifiableSet(stopWords);
     }

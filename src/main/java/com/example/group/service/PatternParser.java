@@ -44,6 +44,10 @@ public class PatternParser {
             return Optional.empty();
         }
 
+        if (!stopWordService.containsAnyLocationToken(rawText)) {
+            return Optional.empty();
+        }
+
         String normalizedText = normalize(rawText);
         List<String> lines = Arrays.stream(normalizedText.split("\\r?\\n"))
                 .map(String::trim)

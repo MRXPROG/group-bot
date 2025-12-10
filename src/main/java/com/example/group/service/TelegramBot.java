@@ -161,6 +161,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         bookingFlow.startFlowInGroup(this, msg, matchResult.slot(), req.getUserFullName());
+        cleanupUserMessage.run();
     }
 
     private boolean hasValidName(ParsedShiftRequest req) {
