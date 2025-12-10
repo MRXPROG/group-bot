@@ -23,7 +23,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private final MorningScheduler morningScheduler;
     private final EveningScheduler eveningScheduler;
-    private final ReminderScheduler reminderScheduler;
     private final FlowCleanerScheduler flowCleanerScheduler;
     private final LeaderboardScheduler leaderboardScheduler;
     private final PatternParser patternParser;
@@ -51,7 +50,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         morningScheduler.start(this);
         eveningScheduler.start(this);
-        reminderScheduler.start(this);
         flowCleanerScheduler.start(this);
         leaderboardScheduler.start(this);
         slotPostUpdater.start(this);
@@ -173,11 +171,6 @@ public class TelegramBot extends TelegramLongPollingBot {
     @SneakyThrows
     public void publishSlotPost(Long chatId, SlotDTO slot) {
         slotPostService.publishSlotPost(this, chatId, slot);
-    }
-
-    @SneakyThrows
-    public void sendReminder(Long chatId, Long messageId, SlotDTO slot, String prefix) {
-        slotPostService.sendReminder(this, chatId, Math.toIntExact(messageId), slot, prefix);
     }
 
     private void answer(String callbackId, String text) {
