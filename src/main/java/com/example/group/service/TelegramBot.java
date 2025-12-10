@@ -169,7 +169,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        askForBookingIntent(msg, req.getUserFullName(), matchResult.slots());
+        askForBookingIntent(msg, req.getUserFullName(), matchResult.slots(), null);
     }
 
     private boolean hasValidName(ParsedShiftRequest req) {
@@ -251,12 +251,12 @@ public class TelegramBot extends TelegramLongPollingBot {
             return true;
         }
 
-        askForBookingIntent(msg, name, List.of(slot));
+        askForBookingIntent(msg, name, List.of(slot), msg.getReplyToMessage().getMessageId());
         return true;
     }
 
     @SneakyThrows
-    private void askForBookingIntent(Message msg, String userFullName, List<SlotDTO> slots) {
+    private void askForBookingIntent(Message msg, String userFullName, List<SlotDTO> slots, Integer replyToMessageId) {
         if (slots == null || slots.isEmpty()) {
             Message reply = execute(new SendMessage(
                     msg.getChatId().toString(),
@@ -271,7 +271,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 msg.getChatId().toString(),
                 "Хочете записатися на зміну?"
         );
-        prompt.setReplyToMessageId(msg.getMessageId());
+        prompt.setReplyToMessageId(replyToMessageId != null ? replyToMessageId : msg.getMessageId());
         prompt.setReplyMarkup(buildIntentKeyboard(token));
 
         execute(prompt);
