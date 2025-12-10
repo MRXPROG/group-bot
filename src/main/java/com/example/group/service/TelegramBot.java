@@ -148,16 +148,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         Runnable cleanupUserMessage = () -> cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);
 
-        if (!hasValidName(req)) {
-            Message reply = execute(new SendMessage(
-                    chatId.toString(),
-                    "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
-            ));
-            cleaner.deleteLater(this, chatId, reply.getMessageId(), 5);
-            cleanupUserMessage.run();
-            return;
-        }
-
         var matchResult = slotService.findMatchingSlot(req);
         if (!matchResult.found()) {
             Message reply = execute(new SendMessage(
@@ -170,10 +160,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         askForBookingIntent(msg, req.getUserFullName(), matchResult.slots(), null);
-    }
-
-    private boolean hasValidName(ParsedShiftRequest req) {
-        return hasValidName(req.getUserFullName());
     }
 
     private boolean hasValidName(String name) {
