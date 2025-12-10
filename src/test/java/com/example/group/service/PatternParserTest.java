@@ -144,6 +144,22 @@ class PatternParserTest {
         assertThat(request.getDate()).isEqualTo(expectedDate(9, 12));
     }
 
+    @Test
+    void shouldNotStripPlaceWordsWhenTheyStartWithPo() {
+        String message = "📍 Нова Пошта\n🏙️ Киев\n📅 11.12.2025 (четвер)\n🕒 02:10 - 02:10\nДима Маслов";
+
+        Optional<ParsedShiftRequest> parsed = parser.parse(message);
+
+        assertThat(parsed).isPresent();
+        ParsedShiftRequest request = parsed.get();
+
+        assertThat(request.getPlaceText()).isEqualTo("Нова Пошта Киев");
+        assertThat(request.getUserFullName()).isEqualTo("Дима Маслов");
+        assertThat(request.getStartTime()).isEqualTo(LocalTime.of(2, 10));
+        assertThat(request.getEndTime()).isEqualTo(LocalTime.of(2, 10));
+        assertThat(request.getDate()).isEqualTo(LocalDate.of(2025, 12, 11));
+    }
+
     private LocalDate expectedDate(int day, int month) {
         LocalDate expectedDate = LocalDate.of(LocalDate.now().getYear(), month, day);
         if (expectedDate.isBefore(LocalDate.now().minusDays(1))) {
