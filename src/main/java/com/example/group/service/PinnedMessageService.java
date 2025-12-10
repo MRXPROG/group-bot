@@ -129,9 +129,8 @@ public class PinnedMessageService {
         }
 
         if (sorted.size() > 10) {
-            sb.append("\n<details>\n<summary>📘 Показати повний рейтинг (11+ місця)</summary>\n\n");
+            sb.append("\n<b>📘 Повний рейтинг (11+ місця)</b>\n");
             appendPlaces(sorted, sb, 10, sorted.size());
-            sb.append("\n</details>");
         }
 
         sb.append("\n\n🕒 Оновлено: ").append(formattedNow());
