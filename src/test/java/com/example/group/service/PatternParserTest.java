@@ -96,6 +96,24 @@ class PatternParserTest {
     }
 
     @Test
+    void shouldParseSingleLineMessageWithPlaceDateAndName() {
+        Optional<ParsedShiftRequest> parsed = parser.parse("Пошта 11.12 Маслов Дима");
+
+        assertThat(parsed).isPresent();
+        ParsedShiftRequest request = parsed.get();
+
+        assertThat(request.getUserFullName()).isEqualTo("Маслов Дима");
+        assertThat(request.getPlaceText()).isEqualTo("Пошта");
+
+        LocalDate expectedDate = LocalDate.of(LocalDate.now().getYear(), 12, 11);
+        if (expectedDate.isBefore(LocalDate.now().minusDays(1))) {
+            expectedDate = expectedDate.plusYears(1);
+        }
+
+        assertThat(request.getDate()).isEqualTo(expectedDate);
+    }
+
+    @Test
     void shouldParseShiftWithPlaceNameOnSameLine() {
         Optional<ParsedShiftRequest> parsed = parser.parse("Стрижавка 18-09 9.12 Зваричевський Юрій");
 
@@ -125,6 +143,20 @@ class PatternParserTest {
         assertThat(request.getEndTime()).isEqualTo(LocalTime.of(23, 0));
 
         assertThat(request.getDate()).isEqualTo(expectedDate(6, 12));
+    }
+
+    @Test
+    void shouldParseWhenPlaceAndDateOnOneLineAndNameOnAnother() {
+        String message = "Пошта 11.12\nМаслов Дима";
+
+        Optional<ParsedShiftRequest> parsed = parser.parse(message);
+
+        assertThat(parsed).isPresent();
+        ParsedShiftRequest request = parsed.get();
+
+        assertThat(request.getUserFullName()).isEqualTo("Маслов Дима");
+        assertThat(request.getPlaceText()).isEqualTo("Пошта");
+        assertThat(request.getDate()).isEqualTo(expectedDate(11, 12));
     }
 
     @Test
