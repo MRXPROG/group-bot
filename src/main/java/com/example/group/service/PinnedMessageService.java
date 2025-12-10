@@ -28,7 +28,7 @@ public class PinnedMessageService {
 
     private final BotSettingsService botSettingsService;
 
-    public void upsertLeaderboard(TelegramLongPollingBot bot, Long chatId, List<UserShiftCount> leaderboard) {
+    public void upsertLeaderboard(TelegramLongPollingBot bot, Long chatId, List<UserScorePoints> leaderboard) {
         if (bot == null) {
             log.warn("PinnedMessageService: bot instance is null");
             return;
@@ -95,18 +95,18 @@ public class PinnedMessageService {
         }
     }
 
-    private String formatLeaderboard(List<UserShiftCount> leaderboard) {
-        List<UserShiftCount> sorted = Optional.ofNullable(leaderboard)
+    private String formatLeaderboard(List<UserScorePoints> leaderboard) {
+        List<UserScorePoints> sorted = Optional.ofNullable(leaderboard)
                 .orElse(List.of())
                 .stream()
-                .filter(row -> row != null && row.count() > 0)
-                .sorted(Comparator.comparingInt(UserShiftCount::count).reversed())
+                .filter(row -> row != null && row.scorePoints() > 0)
+                .sorted(Comparator.comparingInt(UserScorePoints::scorePoints).reversed())
                 .toList();
 
         return buildFormattedMessage(sorted);
     }
 
-    private String buildFormattedMessage(List<UserShiftCount> sorted) {
+    private String buildFormattedMessage(List<UserScorePoints> sorted) {
         if (sorted.isEmpty()) {
             return """
                     🏆 <u><b>Рейтинг активності учасників</b></u>
@@ -139,30 +139,30 @@ public class PinnedMessageService {
         return sb.toString().trim();
     }
 
-    private void appendTopThree(List<UserShiftCount> sorted, StringBuilder sb) {
+    private void appendTopThree(List<UserScorePoints> sorted, StringBuilder sb) {
         String[] medals = {"🥇", "🥈", "🥉"};
         int top = Math.min(sorted.size(), 3);
 
         for (int idx = 0; idx < top; idx++) {
-            UserShiftCount row = sorted.get(idx);
+            UserScorePoints row = sorted.get(idx);
             sb.append(medals[idx])
                     .append(" ")
                     .append(idx + 1)
                     .append(". ")
                     .append(formatName(row))
                     .append(" — ")
-                    .append(row.count())
-                    .append(" змін");
+                    .append(row.scorePoints())
+                    .append(" скорпоінтів");
             if (idx < top - 1) {
                 sb.append("\n");
             }
         }
     }
 
-    private void appendPlaces(List<UserShiftCount> sorted, StringBuilder sb, int fromInclusive, int toExclusive) {
+    private void appendPlaces(List<UserScorePoints> sorted, StringBuilder sb, int fromInclusive, int toExclusive) {
         String[] placeIcons = {"4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"};
         for (int idx = fromInclusive; idx < toExclusive; idx++) {
-            UserShiftCount row = sorted.get(idx);
+            UserScorePoints row = sorted.get(idx);
             String prefix;
             if (idx < 10) {
                 prefix = placeIcons[idx - 3];
@@ -174,7 +174,8 @@ public class PinnedMessageService {
                     .append(" ")
                     .append(formatName(row))
                     .append(" — ")
-                    .append(row.count());
+                    .append(row.scorePoints())
+                    .append(" скорпоінтів");
 
             if (idx < toExclusive - 1) {
                 sb.append("\n");
@@ -182,7 +183,7 @@ public class PinnedMessageService {
         }
     }
 
-    private String formatName(UserShiftCount row) {
+    private String formatName(UserScorePoints row) {
         String fullName = (Optional.ofNullable(row.firstName()).orElse("") + " " + Optional.ofNullable(row.lastName()).orElse("")).trim();
         if (fullName.isBlank()) {
             fullName = "Невідомий";

@@ -2,7 +2,7 @@ package com.example.group.service.impl;
 
 import com.example.group.repository.UserRepository;
 import com.example.group.service.ShiftStatsService;
-import com.example.group.service.UserShiftCount;
+import com.example.group.service.UserScorePoints;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
@@ -20,11 +20,11 @@ public class JpaShiftStatsService implements ShiftStatsService {
     private final UserRepository userRepository;
 
     @Override
-    public List<UserShiftCount> getLeaderboard() {
+    public List<UserScorePoints> getLeaderboard() {
         log.debug("Loading leaderboard from persistent users");
-        return userRepository.findTop10ByScorePointsEmptyOrderByScorePointsDesc()
+        return userRepository.findAllByOrderByScorePointsDesc()
                 .stream()
-                .map(user -> new UserShiftCount(
+                .map(user -> new UserScorePoints(
                         user.getId(),
                         user.getFirstName(),
                         user.getLastName(),
