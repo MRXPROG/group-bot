@@ -121,16 +121,23 @@ public class PinnedMessageService {
         sb.append("🏆 <u><b>Рейтинг активності учасників</b></u>\n\n");
 
         appendTopThree(sorted, sb);
+        sb.append("\n\n");
 
         int upperBound = Math.min(sorted.size(), 10);
         if (upperBound > 3) {
             sb.append("\n<b>4–10 місця</b>\n");
             appendPlaces(sorted, sb, 3, upperBound);
+            sb.append("\n\n");
         }
 
         if (sorted.size() > 10) {
-            sb.append("\n<b>📘 Повний рейтинг (11+ місця)</b>\n");
+            sb.append("\n<details>\n");
+            sb.append("<summary>📘 Показати повний рейтинг </summary>\n");
+            sb.append(wrapInCollapsedComment("Свернутый комментарий"));
+            sb.append("\n");
             appendPlaces(sorted, sb, 10, sorted.size());
+            sb.append("\n</details>\n");
+            sb.append("комментарий заканчиваеться\n");
         }
 
         sb.append("\n\n🕒 Оновлено: ").append(formattedNow());
@@ -166,7 +173,7 @@ public class PinnedMessageService {
             if (idx < 10) {
                 prefix = placeIcons[idx - 3];
             } else {
-                prefix = String.valueOf(idx + 1);
+                prefix = (idx + 1) + ".";
             }
 
             sb.append(prefix)
@@ -201,5 +208,9 @@ public class PinnedMessageService {
 
     private String formattedNow() {
         return ZonedDateTime.now(KYIV_ZONE).format(TS);
+    }
+
+    private String wrapInCollapsedComment(String text) {
+        return "<!--\n" + text + "\n-->";
     }
 }
