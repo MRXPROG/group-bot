@@ -15,6 +15,7 @@ import java.time.temporal.ChronoField;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -55,9 +56,8 @@ public class PatternParser {
         LocalDate date = extractDate(normalizedText);
         TimeRange timeRange = extractTime(normalizedText);
 
-        boolean hasAny = date != null || timeRange.start != null || timeRange.end != null
-                || (placeText != null && !placeText.isBlank()) || name != null;
-        if (!hasAny) {
+        boolean hasDateOrTime = date != null || timeRange.start != null || timeRange.end != null;
+        if (!hasDateOrTime) {
             return Optional.empty();
         }
 
@@ -301,7 +301,25 @@ public class PatternParser {
         }
         String normalizedCandidate = candidate.toLowerCase(Locale.ROOT).trim();
         String normalizedPlace = placeText.toLowerCase(Locale.ROOT);
-        return normalizedPlace.contains(normalizedCandidate);
+
+        if (normalizedPlace.contains(normalizedCandidate) || normalizedCandidate.contains(normalizedPlace)) {
+            return true;
+        }
+
+        Set<String> candidateTokens = splitToTokens(normalizedCandidate);
+        Set<String> placeTokens = splitToTokens(normalizedPlace);
+
+        return candidateTokens.stream().anyMatch(placeTokens::contains);
+    }
+
+    private Set<String> splitToTokens(String text) {
+        if (text == null || text.isBlank()) {
+            return Set.of();
+        }
+        return Arrays.stream(text.split("\\s+"))
+                .map(token -> token.replaceAll("[^\\p{L}\\p{N}]+", ""))
+                .filter(token -> !token.isBlank())
+                .collect(Collectors.toSet());
     }
 
     private String blankToNull(String value) {
