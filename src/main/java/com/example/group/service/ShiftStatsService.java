@@ -4,5 +4,5 @@ import java.util.List;
 
 public interface ShiftStatsService {
 
-    List<UserShiftCount> getLeaderboard();
+    List<UserScorePoints> getLeaderboard();
 }
