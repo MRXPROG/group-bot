@@ -1,9 +1,12 @@
 package com.example.group.service;
 
 import com.example.group.config.BotConfig;
+import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.ParsedShiftRequest;
 import com.example.group.dto.SlotDTO;
 import com.example.group.service.BotSettingsService;
+import com.example.group.service.BookingRequestCache;
+import com.example.group.repository.GroupShiftMessageRepository;
 import com.example.group.service.util.MessageCleaner;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +15,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.*;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -34,6 +43,12 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final BotSettingsService settingsService;
     private final LeaderboardUpdater leaderboardUpdater;
     private final SlotPostUpdater slotPostUpdater;
+    private final BookingRequestCache requestCache;
+    private final GroupShiftMessageRepository shiftMsgRepo;
+    private final MainBotApiClient mainApi;
+
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     @Override
     public String getBotUsername() {
@@ -80,6 +95,10 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         if ("/bind".equalsIgnoreCase(text)) {
             handleBindCommand(msg);
+            return;
+        }
+
+        if (msg.getReplyToMessage() != null && tryHandleReplyFlow(msg)) {
             return;
         }
 
@@ -150,18 +169,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        if (matchResult.ambiguous()) {
-            Message reply = execute(new SendMessage(
-                    chatId.toString(),
-                    "ℹ️ Знайшлось кілька схожих змін. Напиши повідомлення ще раз з уточненням місця чи часу."
-            ));
-            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
-            cleanupUserMessage.run();
-            return;
-        }
-
-        bookingFlow.startFlowInGroup(this, msg, matchResult.slot(), req.getUserFullName());
-        cleanupUserMessage.run();
+        askForBookingIntent(msg, req.getUserFullName(), matchResult.slots());
     }
 
     private boolean hasValidName(ParsedShiftRequest req) {
@@ -178,6 +186,16 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         String data = cbq.getData();
         Long userId = cbq.getFrom().getId();
+
+        if (data.startsWith("INT:")) {
+            handleIntentDecision(cbq, data);
+            return;
+        }
+
+        if (data.startsWith("SLT:")) {
+            handleSlotSelection(cbq, data);
+            return;
+        }
 
         if (!data.startsWith("CFM:")) {
             answer(cbq.getId(), "Невідома дія");
@@ -200,6 +218,241 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         bookingFlow.handleDecision(this, cbq, slotId, decision);
+    }
+
+    @SneakyThrows
+    private boolean tryHandleReplyFlow(Message msg) {
+        Long chatId = msg.getChatId();
+        Integer replyId = msg.getReplyToMessage().getMessageId();
+
+        var shiftMessageOpt = shiftMsgRepo.findByChatIdAndMessageId(chatId, replyId);
+        if (shiftMessageOpt.isEmpty()) {
+            return false;
+        }
+
+        Long slotId = shiftMessageOpt.get().getSlotId();
+        SlotDTO slot = mainApi.getSlotById(slotId);
+        if (slot == null) {
+            Message reply = execute(new SendMessage(
+                    chatId.toString(),
+                    "⚠️ Не можу знайти цю зміну. Спробуй іншу."
+            ));
+            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            return true;
+        }
+
+        String name = patternParser.extractNameOnly(msg.getText()).orElse(null);
+        if (name == null || name.isBlank()) {
+            Message reply = execute(new SendMessage(
+                    chatId.toString(),
+                    "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
+            ));
+            cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
+            return true;
+        }
+
+        askForBookingIntent(msg, name, List.of(slot));
+        return true;
+    }
+
+    @SneakyThrows
+    private void askForBookingIntent(Message msg, String userFullName, List<SlotDTO> slots) {
+        if (slots == null || slots.isEmpty()) {
+            Message reply = execute(new SendMessage(
+                    msg.getChatId().toString(),
+                    "⚠️ Не знайшов такої зміни. Перевір, чи все ввів правильно"
+            ));
+            cleaner.deleteLater(this, msg.getChatId(), reply.getMessageId(), 15);
+            return;
+        }
+
+        String token = requestCache.store(msg, userFullName, slots);
+        SendMessage prompt = new SendMessage(
+                msg.getChatId().toString(),
+                "Хочете записатися на зміну?"
+        );
+        prompt.setReplyToMessageId(msg.getMessageId());
+        prompt.setReplyMarkup(buildIntentKeyboard(token));
+
+        execute(prompt);
+    }
+
+    @SneakyThrows
+    private void handleIntentDecision(CallbackQuery cbq, String data) {
+        String[] parts = data.split(":");
+        if (parts.length != 3) {
+            answer(cbq.getId(), "Хибна команда");
+            return;
+        }
+
+        String token = parts[1];
+        String decision = parts[2];
+        var stateOpt = requestCache.get(token);
+
+        if (stateOpt.isEmpty()) {
+            answer(cbq.getId(), "⏳ Час вийшов. Створи нову заявку.");
+            cleaner.deleteLater(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId(), 5);
+            return;
+        }
+
+        BookingRequestCache.BookingRequestState state = stateOpt.get();
+        if (!state.getUserId().equals(cbq.getFrom().getId())) {
+            answer(cbq.getId(), "❌ Ця кнопка не для тебе");
+            return;
+        }
+
+        if ("NO".equalsIgnoreCase(decision)) {
+            requestCache.remove(token);
+            answer(cbq.getId(), "Добре, нічого не роблю.");
+            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 5);
+            return;
+        }
+
+        state.setControlMessageId(cbq.getMessage().getMessageId());
+        requestCache.update(state);
+
+        if (state.getSlots().size() == 1) {
+            requestCache.remove(token);
+            startBookingFlow(state, state.getSlots().get(0), state.getUserMessage());
+            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+            return;
+        }
+
+        showSlotChoice(cbq, state);
+    }
+
+    @SneakyThrows
+    private void handleSlotSelection(CallbackQuery cbq, String data) {
+        String[] parts = data.split(":");
+        if (parts.length != 3) {
+            answer(cbq.getId(), "Хибна команда");
+            return;
+        }
+
+        String token = parts[1];
+        String action = parts[2];
+        var stateOpt = requestCache.get(token);
+
+        if (stateOpt.isEmpty()) {
+            answer(cbq.getId(), "⏳ Час вийшов. Створи нову заявку.");
+            cleaner.deleteLater(this, cbq.getMessage().getChatId(), cbq.getMessage().getMessageId(), 5);
+            return;
+        }
+
+        BookingRequestCache.BookingRequestState state = stateOpt.get();
+        if (!state.getUserId().equals(cbq.getFrom().getId())) {
+            answer(cbq.getId(), "❌ Ця кнопка не для тебе");
+            return;
+        }
+
+        if ("BOOK".equalsIgnoreCase(action)) {
+            requestCache.remove(token);
+            SlotDTO slot = state.getSlots().get(state.getCurrentIndex());
+            startBookingFlow(state, slot, state.getUserMessage());
+            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 15);
+            return;
+        }
+
+        if ("CANCEL".equalsIgnoreCase(action)) {
+            requestCache.remove(token);
+            answer(cbq.getId(), "Скасовано");
+            cleaner.deleteLater(this, state.getChatId(), cbq.getMessage().getMessageId(), 5);
+            return;
+        }
+
+        int total = state.getSlots().size();
+        if ("NEXT".equalsIgnoreCase(action)) {
+            state.setCurrentIndex((state.getCurrentIndex() + 1) % total);
+        } else if ("PREV".equalsIgnoreCase(action)) {
+            state.setCurrentIndex((state.getCurrentIndex() - 1 + total) % total);
+        }
+
+        requestCache.update(state);
+        showSlotChoice(cbq, state);
+    }
+
+    @SneakyThrows
+    private void startBookingFlow(BookingRequestCache.BookingRequestState state, SlotDTO slot, Message sourceMessage) {
+        bookingFlow.startFlowInGroup(this, sourceMessage, slot, state.getUserFullName());
+        cleaner.deleteLater(this, state.getChatId(), sourceMessage.getMessageId(), 15);
+    }
+
+    @SneakyThrows
+    private void showSlotChoice(CallbackQuery cbq, BookingRequestCache.BookingRequestState state) {
+        SlotDTO slot = state.getSlots().get(state.getCurrentIndex());
+        int total = state.getSlots().size();
+        int index = state.getCurrentIndex() + 1;
+
+        EditMessageText edit = new EditMessageText();
+        edit.setChatId(state.getChatId().toString());
+        edit.setMessageId(state.getControlMessageId() != null
+                ? state.getControlMessageId()
+                : cbq.getMessage().getMessageId());
+        edit.setText(formatSlot(slot, index, total, state.getUserFullName()));
+        edit.setReplyMarkup(buildSlotNavigationKeyboard(state.getToken(), total));
+
+        Message edited = execute(edit);
+        state.setControlMessageId(edited.getMessageId());
+        requestCache.update(state);
+    }
+
+    private String formatSlot(SlotDTO slot, int index, int total, String userFullName) {
+        String innLine = slot.isInnRequired() ? " • ІПН обов'язковий" : "";
+        return ("""
+                Знайшлось %d змін за твоїм запитом.
+                Сторінка %d/%d
+                📍 %s
+                📅 %s • %s - %s%s
+                👤 Ім'я в заявці: %s
+                """)
+                .formatted(
+                        total,
+                        index,
+                        total,
+                        slot.getPlaceName(),
+                        slot.getStart().toLocalDate().format(DATE),
+                        slot.getStart().toLocalTime().format(TIME),
+                        slot.getEnd().toLocalTime().format(TIME),
+                        innLine,
+                        userFullName
+                ).trim();
+    }
+
+    private InlineKeyboardMarkup buildIntentKeyboard(String token) {
+        InlineKeyboardButton yes = new InlineKeyboardButton();
+        yes.setText("✅ Так");
+        yes.setCallbackData("INT:" + token + ":YES");
+
+        InlineKeyboardButton no = new InlineKeyboardButton();
+        no.setText("❌ Ні");
+        no.setCallbackData("INT:" + token + ":NO");
+
+        return new InlineKeyboardMarkup(List.of(List.of(yes, no)));
+    }
+
+    private InlineKeyboardMarkup buildSlotNavigationKeyboard(String token, int total) {
+        InlineKeyboardButton prev = new InlineKeyboardButton();
+        prev.setText("◀️");
+        prev.setCallbackData("SLT:" + token + ":PREV");
+
+        InlineKeyboardButton next = new InlineKeyboardButton();
+        next.setText("▶️");
+        next.setCallbackData("SLT:" + token + ":NEXT");
+
+        InlineKeyboardButton book = new InlineKeyboardButton();
+        book.setText("✅ Обрати");
+        book.setCallbackData("SLT:" + token + ":BOOK");
+
+        InlineKeyboardButton cancel = new InlineKeyboardButton();
+        cancel.setText("✖️ Скасувати");
+        cancel.setCallbackData("SLT:" + token + ":CANCEL");
+
+        return new InlineKeyboardMarkup(
+                List.of(
+                        List.of(prev, next),
+                        List.of(book, cancel)
+                )
+        );
     }
 
     @SneakyThrows

@@ -32,7 +32,7 @@ public class SlotServiceImpl implements SlotService {
 
         if ((placeText == null || placeText.isBlank()) && start == null && end == null && date == null) {
             log.info("No usable parameters in shift request: {}", req);
-            return new SlotMatchResult(null, false);
+            return new SlotMatchResult(List.of());
         }
 
         log.info("Searching slot: date={}, time={}–{}, place='{}'",
@@ -42,7 +42,7 @@ public class SlotServiceImpl implements SlotService {
         List<SlotDTO> slots = date != null ? api.getSlotsForDate(date) : api.getUpcomingSlots();
         if (slots.isEmpty()) {
             log.info("No slots available for {}", date != null ? "date " + date : "upcoming schedule");
-            return new SlotMatchResult(null, false);
+            return new SlotMatchResult(List.of());
         }
 
         // 2) Оцениваем похожесть по месту, времени и (если есть) дате и выбираем лучший слот
@@ -52,23 +52,20 @@ public class SlotServiceImpl implements SlotService {
                 .toList();
 
         if (ranked.isEmpty()) {
-            return new SlotMatchResult(null, false);
+            return new SlotMatchResult(List.of());
         }
 
-        SlotScore bestMatch = ranked.get(0);
-        SlotScore second = ranked.size() > 1 ? ranked.get(1) : null;
+        List<SlotDTO> matches = ranked.stream()
+                .filter(score -> score.score() >= 0.35)
+                .map(SlotScore::slot)
+                .toList();
 
-        if (bestMatch == null || bestMatch.score() < 0.35) {
+        if (matches.isEmpty()) {
             log.info("No sufficiently similar slot found for place='{}' time={}–{}", placeText, start, end);
-            return new SlotMatchResult(null, false);
         }
 
-        boolean ambiguous = second != null
-                && second.score() >= 0.35
-                && Math.abs(bestMatch.score() - second.score()) < 0.12;
-
-        // 3) Возвращаем лучший найденный вариант и признак неоднозначности
-        return new SlotMatchResult(bestMatch.slot(), ambiguous);
+        // 3) Возвращаем подходящие варианты, отсортированные по релевантности
+        return new SlotMatchResult(matches);
     }
 
     // ------------------ Вспомогательные методы ------------------
