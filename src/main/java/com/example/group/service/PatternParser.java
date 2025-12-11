@@ -45,6 +45,7 @@ public class PatternParser {
         }
 
         String normalizedText = normalize(rawText);
+        String normalizedWithoutLocation = removeLocationMentions(normalizedText);
         List<String> lines = Arrays.stream(normalizedText.split("\\r?\\n"))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
@@ -52,11 +53,11 @@ public class PatternParser {
 
         boolean hasLocationToken = stopWordService.containsAnyLocationToken(normalizedText);
 
-        String name = extractName(normalizedText, null);
+        String name = extractName(normalizedWithoutLocation, null);
         String placeText = extractPlace(lines, name);
 
         if (name == null && placeText != null) {
-            name = extractName(normalizedText, placeText);
+            name = extractName(normalizedWithoutLocation, placeText);
             if (name != null) {
                 placeText = extractPlace(lines, name);
             }
@@ -90,7 +91,8 @@ public class PatternParser {
         }
 
         String normalizedText = normalize(rawText);
-        String name = extractName(normalizedText, null);
+        String normalizedWithoutLocation = removeLocationMentions(normalizedText);
+        String name = extractName(normalizedWithoutLocation, null);
         return Optional.ofNullable(blankToNull(name));
     }
 
@@ -354,6 +356,49 @@ public class PatternParser {
                 .map(token -> token.replaceAll("[^\\p{L}\\p{N}]+", ""))
                 .filter(token -> !token.isBlank())
                 .collect(Collectors.toSet());
+    }
+
+    private String removeLocationMentions(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+
+        Pattern locationKeyword = Pattern.compile("(?iu)^локац(?:ия)?$");
+
+        return Arrays.stream(text.split("\n"))
+                .map(line -> removeLocationFromLine(line, locationKeyword))
+                .filter(cleaned -> !cleaned.isBlank())
+                .collect(Collectors.joining("\n"));
+    }
+
+    private String removeLocationFromLine(String line, Pattern locationKeyword) {
+        List<String> kept = new ArrayList<>();
+        boolean skippingLocation = false;
+
+        for (String rawToken : line.split("\\s+")) {
+            if (rawToken.isBlank()) {
+                continue;
+            }
+
+            String normalizedToken = rawToken.replaceAll("[^\\p{L}\\p{M}\\p{N}]+", "");
+            String lower = normalizedToken.toLowerCase(Locale.ROOT);
+
+            if (locationKeyword.matcher(lower).matches()) {
+                skippingLocation = true;
+                continue;
+            }
+
+            if (skippingLocation) {
+                if (stopWordService.isStopWordToken(normalizedToken)) {
+                    continue;
+                }
+                skippingLocation = false;
+            }
+
+            kept.add(rawToken);
+        }
+
+        return String.join(" ", kept).trim();
     }
 
     private String blankToNull(String value) {
