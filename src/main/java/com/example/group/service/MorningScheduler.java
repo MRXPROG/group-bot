@@ -7,8 +7,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.List;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -33,10 +36,24 @@ public class MorningScheduler {
             return;
         }
 
-        LocalDate tomorrow = LocalDate.now().plusDays(1);
-        List<SlotDTO> slots = api.getUpcomingSlots();
-        slots.stream()
-                .filter(slot -> !slot.getStart().toLocalDate().isBefore(tomorrow))
+        LocalDate today = LocalDate.now();
+        Set<LocalDate> datesToPost = new LinkedHashSet<>();
+        datesToPost.add(today);
+        datesToPost.add(today.plusDays(1));
+
+        DayOfWeek dayOfWeek = today.getDayOfWeek();
+        if (dayOfWeek == DayOfWeek.FRIDAY) {
+            datesToPost.add(today.plusDays(2));
+            datesToPost.add(today.plusDays(3));
+        } else if (dayOfWeek == DayOfWeek.SATURDAY) {
+            datesToPost.add(today.plusDays(2));
+        }
+
+        Set<Long> postedSlotIds = new HashSet<>();
+
+        datesToPost.stream()
+                .flatMap(date -> api.getSlotsForDate(date).stream())
+                .filter(slot -> postedSlotIds.add(slot.getId()))
                 .forEach(slot -> {
                     try {
                         slotPostService.publishSlotPost(bot, groupChatId, slot, true, false, true);
