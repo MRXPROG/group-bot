@@ -232,6 +232,7 @@ public class SlotPostService {
         String response = Optional.ofNullable(e.getMessage()).orElse("");
         String description = Optional.ofNullable(e.getMessage()).orElse("");
         String payload = (response + " " + description).toLowerCase();
-        return Objects.equals(code, 400) && (payload.contains("message to edit not found") || payload.contains("message to delete not found") || payload.contains("message is not modified"));
+        return Objects.equals(code, 400)
+                && (payload.contains("message to edit not found") || payload.contains("message to delete not found"));
     }
 }

@@ -1,10 +1,8 @@
 package com.example.group.service;
 
 import com.example.group.controllers.MainBotApiClient;
-import com.example.group.dto.SlotDTO;
-import com.example.group.service.BotSettingsService;
 import com.example.group.repository.GroupShiftMessageRepository;
-import com.example.group.model.GroupShiftMessage;
+import com.example.group.service.BotSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -54,18 +52,19 @@ public class EveningScheduler {
             datesToPost.add(today.plusDays(2));
         }
 
-        Set<Long> postedSlotIds = new HashSet<>(
-                shiftMsgRepo.findAllByChatId(groupChatId).stream()
-                        .map(GroupShiftMessage::getSlotId)
-                        .toList()
-        );
+        Set<Long> postedSlotIds = new HashSet<>();
 
         datesToPost.stream()
                 .flatMap(date -> api.getSlotsForDate(date).stream())
                 .filter(slot -> postedSlotIds.add(slot.getId()))
                 .forEach(slot -> {
                     try {
-                        slotPostService.publishSlotPost(bot, groupChatId, slot, false, true);
+                        boolean alreadyTracked = shiftMsgRepo.findByChatIdAndSlotId(groupChatId, slot.getId()).isPresent();
+                        if (alreadyTracked) {
+                            slotPostService.publishSlotPost(bot, groupChatId, slot, false, true);
+                        } else {
+                            slotPostService.publishSlotPost(bot, groupChatId, slot, false, true, false);
+                        }
                     } catch (Exception e) {
                         log.error("Failed to publish evening slot {}: {}", slot.getId(), e.getMessage());
                     }
