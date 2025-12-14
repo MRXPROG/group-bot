@@ -228,10 +228,10 @@ public class SlotPostService {
     }
 
     private boolean isMessageMissing(TelegramApiException e) {
-        Integer code = e.hashCode();
-        String response = Optional.ofNullable(e.getMessage()).orElse("");
+        Integer code = e.getErrorCode();
+        String apiResponse = Optional.ofNullable(e.getApiResponse()).orElse("");
         String description = Optional.ofNullable(e.getMessage()).orElse("");
-        String payload = (response + " " + description).toLowerCase();
+        String payload = (apiResponse + " " + description).toLowerCase();
         return Objects.equals(code, 400)
                 && (payload.contains("message to edit not found") || payload.contains("message to delete not found"));
     }
