@@ -53,7 +53,7 @@ public class SlotPostUpdater {
     }
 
     private void refreshSingle(Long chatId, GroupShiftMessage msg) {
-        SlotDTO slot = api.getSlotById(msg.getSlotId());
+        SlotDTO slot = fetchSlot(msg.getSlotId());
         if (slot == null) {
             log.info("SlotPostUpdater: slot {} not found, keeping post {} for potential re-open", msg.getSlotId(), msg.getMessageId());
             return;
@@ -69,6 +69,23 @@ public class SlotPostUpdater {
             slotPostService.publishSlotPost(bot, chatId, slot, msg.isMorningPost(), msg.isEveningPost());
         } catch (Exception e) {
             log.error("SlotPostUpdater: failed to refresh slot {}: {}", slot.getId(), e.getMessage());
+        }
+    }
+
+    private SlotDTO fetchSlot(Long slotId) {
+        SlotDTO slot = api.getSlotById(slotId);
+        if (slot != null) {
+            return slot;
+        }
+
+        try {
+            return api.getUpcomingSlots().stream()
+                    .filter(it -> slotId.equals(it.getId()))
+                    .findFirst()
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("SlotPostUpdater: failed to reload slot {} from upcoming list: {}", slotId, e.getMessage());
+            return null;
         }
     }
 
