@@ -56,11 +56,25 @@ public class PinnedMessageService {
             bot.execute(edit);
             ensurePinned(bot, chatId, pinnedMessageId);
         } catch (TelegramApiRequestException e) {
+            if (isMessageNotModified(e)) {
+                log.debug("Pinned message unchanged; skipping recreation");
+                ensurePinned(bot, chatId, pinnedMessageId);
+                return;
+            }
+
             log.warn("Pinned message update failed ({}). Recreating...", e.getMessage());
             createAndPin(bot, chatId, text);
         } catch (Exception e) {
             log.error("Unexpected error during pinned message update", e);
         }
+    }
+
+    private boolean isMessageNotModified(TelegramApiRequestException exception) {
+        String apiResponse = Optional.ofNullable(exception.getApiResponse()).orElse("");
+        String message = Optional.ofNullable(exception.getMessage()).orElse("");
+
+        return apiResponse.toLowerCase(Locale.ROOT).contains("message is not modified")
+                || message.toLowerCase(Locale.ROOT).contains("message is not modified");
     }
 
     private void createAndPin(TelegramLongPollingBot bot, Long chatId, String text) {
