@@ -53,8 +53,13 @@ public class SlotPostUpdater {
 
     private void refreshSingle(Long chatId, GroupShiftMessage msg) {
         SlotDTO slot = api.getSlotById(msg.getSlotId());
-        if (slot == null || isSlotFinished(slot)) {
-            log.info("SlotPostUpdater: slot {} is finished or missing, cleaning up post {}", msg.getSlotId(), msg.getMessageId());
+        if (slot == null) {
+            log.info("SlotPostUpdater: slot {} not found, keeping post {} for potential re-open", msg.getSlotId(), msg.getMessageId());
+            return;
+        }
+
+        if (isSlotFinished(slot)) {
+            log.info("SlotPostUpdater: slot {} is finished, cleaning up post {}", msg.getSlotId(), msg.getMessageId());
             cleanupSlotPost(chatId, msg);
             return;
         }
