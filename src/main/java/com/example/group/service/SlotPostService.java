@@ -62,7 +62,7 @@ public class SlotPostService {
 
         List<SlotBookingDTO> safeBookings = Optional.ofNullable(s.getBookings()).orElse(Collections.emptyList());
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
-        int activeCount = Math.max(s.getBookedCount(), activeBookings.size());
+        int activeCount = activeBookings.isEmpty() ? s.getBookedCount() : activeBookings.size();
 
         String employees = buildEmployeeBlock(activeBookings, activeCount);
         String fullNotice = activeCount >= s.getCapacity()
@@ -139,11 +139,9 @@ public class SlotPostService {
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {
         return bookings.stream()
-                .filter(b -> {
-                    Booking.BookingStatus status = Optional.ofNullable(b.getStatus())
-                            .orElse(Booking.BookingStatus.PENDING);
-                    return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
-                })
+                .filter(b -> Optional.ofNullable(b.getStatus())
+                        .map(status -> status != Booking.BookingStatus.CANCELLED)
+                        .orElse(true))
                 .toList();
     }
 
