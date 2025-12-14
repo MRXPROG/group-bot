@@ -45,6 +45,7 @@ public class PatternParser {
         }
 
         String normalizedText = normalize(rawText);
+        String textWithoutLocations = stripLocationTokens(normalizedText);
         List<String> lines = Arrays.stream(normalizedText.split("\\r?\\n"))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
@@ -52,11 +53,11 @@ public class PatternParser {
 
         boolean hasLocationToken = stopWordService.containsAnyLocationToken(normalizedText);
 
-        String name = extractName(normalizedText, null);
+        String name = extractName(textWithoutLocations, null);
         String placeText = extractPlace(lines, name);
 
         if (name == null && placeText != null) {
-            name = extractName(normalizedText, placeText);
+            name = extractName(textWithoutLocations, placeText);
             if (name != null) {
                 placeText = extractPlace(lines, name);
             }
@@ -90,7 +91,7 @@ public class PatternParser {
         }
 
         String normalizedText = normalize(rawText);
-        String name = extractName(normalizedText, null);
+        String name = extractName(stripLocationTokens(normalizedText), null);
         return Optional.ofNullable(blankToNull(name));
     }
 
@@ -120,6 +121,22 @@ public class PatternParser {
         cleaned = cleaned.replaceAll("\\s*\\n\\s*", "\n");
 
         return cleaned.trim();
+    }
+
+    private String stripLocationTokens(String text) {
+        if (text == null || text.isBlank()) {
+            return text;
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (String token : text.split("\\s+")) {
+            if (token.isBlank() || stopWordService.isStopWordToken(token)) {
+                continue;
+            }
+            result.append(token).append(' ');
+        }
+
+        return result.toString().trim();
     }
 
     private LocalDate extractDate(String text) {
