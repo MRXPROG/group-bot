@@ -10,6 +10,7 @@ import com.example.group.service.BookingFlowService;
 import com.example.group.service.SlotPostUpdater;
 import com.example.group.service.util.MessageCleaner;
 import com.example.group.service.exception.BookingConflictException;
+import com.example.group.service.exception.BookingTimeRestrictionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -139,6 +140,9 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             } catch (BookingConflictException e) {
                 log.warn("User {} already has booking for slot {}", userId, slotId);
                 answer(bot, cbq, "ℹ️ Ти вже у цій зміні.");
+            } catch (BookingTimeRestrictionException e) {
+                log.warn("Booking time restriction for user {} and slot {}: {}", userId, slotId, e.getMessage());
+                answer(bot, cbq, e.getMessage());
             } catch (Exception e) {
                 log.error("Failed to create booking: {}", e.getMessage());
                 answer(bot, cbq, "❌ Не вийшло створити заявку. Спробуй пізніше.");
