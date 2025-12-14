@@ -62,9 +62,9 @@ public class SlotPostService {
 
         List<SlotBookingDTO> safeBookings = Optional.ofNullable(s.getBookings()).orElse(Collections.emptyList());
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
-        int activeCount = activeBookings.isEmpty() ? s.getBookedCount() : activeBookings.size();
+        int activeCount = activeBookings.size();
 
-        String employees = buildEmployeeBlock(activeBookings, activeCount);
+        String employees = buildEmployeeBlock(activeBookings);
         String fullNotice = activeCount >= s.getCapacity()
                 ? "\n\n⚠️ Зміна поки повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
                 : "";
@@ -119,20 +119,14 @@ public class SlotPostService {
         }
     }
 
-    private String buildEmployeeBlock(List<SlotBookingDTO> activeBookings, int activeCount) {
-        if (activeCount == 0) {
+    private String buildEmployeeBlock(List<SlotBookingDTO> activeBookings) {
+        if (activeBookings.isEmpty()) {
             return "Працівники:\n" + wrapInCollapsedComment("Наразі учасників немає.");
         }
 
         String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
-
-        int missingNames = Math.max(0, activeCount - activeBookings.size());
-        if (missingNames > 0) {
-            String pendingLine = "⏳ +" + missingNames + " учасн.";
-            list = list.isBlank() ? pendingLine : list + "\n" + pendingLine;
-        }
 
         return "Працівники:\n" + wrapInCollapsedComment(list);
     }
