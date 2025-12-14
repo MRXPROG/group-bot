@@ -22,6 +22,7 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -285,14 +286,17 @@ public class BookingFlowServiceImpl implements BookingFlowService {
     }
 
     private boolean isMessageMissing(TelegramApiException e) {
-        Integer code = e.getErrorCode();
-        String apiResponse = Optional.ofNullable(e.getApiResponse()).orElse("");
-        String description = Optional.ofNullable(e.getMessage()).orElse("");
-        String payload = (apiResponse + " " + description).toLowerCase();
-        return Objects.equals(code, 400) && (payload.contains("message to reply not found") ||
-                payload.contains("message to edit not found") ||
-                payload.contains("message to delete not found") ||
-                payload.contains("message is not modified"));
+        if (e instanceof TelegramApiRequestException requestException) {
+            Integer code = requestException.getErrorCode();
+            String apiResponse = Optional.ofNullable(requestException.getApiResponse()).orElse("");
+            String description = Optional.ofNullable(requestException.getMessage()).orElse("");
+            String payload = (apiResponse + " " + description).toLowerCase();
+            return Objects.equals(code, 400) && (payload.contains("message to reply not found") ||
+                    payload.contains("message to edit not found") ||
+                    payload.contains("message to delete not found") ||
+                    payload.contains("message is not modified"));
+        }
+        return false;
     }
 
     private record NameParts(String firstName, String lastName) {}
