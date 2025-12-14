@@ -3,6 +3,8 @@ package com.example.group.service;
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.SlotDTO;
 import com.example.group.service.BotSettingsService;
+import com.example.group.repository.GroupShiftMessageRepository;
+import com.example.group.model.GroupShiftMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,6 +24,7 @@ public class EveningScheduler {
     private final MainBotApiClient api;
     private final BotSettingsService settingsService;
     private final SlotPostService slotPostService;
+    private final GroupShiftMessageRepository shiftMsgRepo;
 
     private TelegramBot bot;
 
@@ -44,7 +47,11 @@ public class EveningScheduler {
         List<SlotDTO> todaySlots = api.getSlotsForDate(today);
         List<SlotDTO> tomorrowSlots = api.getSlotsForDate(tomorrow);
 
-        Set<Long> postedSlotIds = new HashSet<>();
+        Set<Long> postedSlotIds = new HashSet<>(
+                shiftMsgRepo.findAllByChatId(groupChatId).stream()
+                        .map(GroupShiftMessage::getSlotId)
+                        .toList()
+        );
 
         Stream.concat(todaySlots.stream(), tomorrowSlots.stream())
                 .filter(slot -> postedSlotIds.add(slot.getId()))
