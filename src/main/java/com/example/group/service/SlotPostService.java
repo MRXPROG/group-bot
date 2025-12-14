@@ -118,14 +118,14 @@ public class SlotPostService {
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
 
         if (activeBookings.isEmpty()) {
-            return "Команда:\n" + wrapInCollapsedComment("поки нікого. Долучайся!");
+            return "Працівники:\n" + wrapInCollapsedComment("поки нікого. Долучайся!");
         }
 
         String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
 
-        return "Команда:\n" + wrapInCollapsedComment(list);
+        return "Працівники:\n" + wrapInCollapsedComment(list);
     }
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {

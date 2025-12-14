@@ -117,7 +117,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (!isGroup) {
             execute(new SendMessage(
                     msg.getChatId().toString(),
-                    "Команда працює тільки в групі"
+                    "Працівники доступні тільки в групі"
             ));
             return;
         }

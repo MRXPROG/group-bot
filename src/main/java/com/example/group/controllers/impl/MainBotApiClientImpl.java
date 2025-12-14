@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.example.group.service.exception.BookingConflictException;
+import com.example.group.service.exception.BookingTimeRestrictionException;
 
 @Slf4j
 @Service
@@ -82,11 +83,16 @@ public class MainBotApiClientImpl implements MainBotApiClient {
 
             restTemplate.exchange(url, HttpMethod.POST, entity, Void.class);
         } catch (HttpStatusCodeException e) {
+            String responseBody = e.getResponseBodyAsString();
             log.error("Failed to create booking for user={}, slot={}: {} : {}", telegramUserId, slotId,
-                    e.getStatusCode(), e.getResponseBodyAsString());
+                    e.getStatusCode(), responseBody);
 
             if (HttpStatus.CONFLICT.equals(e.getStatusCode())) {
                 throw new BookingConflictException("Booking already exists for slot");
+            }
+
+            if (HttpStatus.BAD_REQUEST.equals(e.getStatusCode()) && isBookingDateRestricted(responseBody)) {
+                throw new BookingTimeRestrictionException(resolveRestrictionMessage(responseBody));
             }
 
             throw new RuntimeException("Booking creation failed with status " + e.getStatusCode(), e);
@@ -95,6 +101,30 @@ public class MainBotApiClientImpl implements MainBotApiClient {
                     telegramUserId, slotId, e.getMessage());
             throw new RuntimeException("Booking creation failed", e);
         }
+    }
+
+    private boolean isBookingDateRestricted(String responseBody) {
+        if (responseBody == null) {
+            return false;
+        }
+
+        String normalized = responseBody.toLowerCase();
+        return normalized.contains("err.booking_date_restricted")
+                || normalized.contains("запис на вибрану дату недоступний за правилами запису");
+    }
+
+    private String resolveRestrictionMessage(String responseBody) {
+        String defaultMessage = "❌ Запис на вибрану дату недоступний за правилами запису.";
+
+        if (responseBody == null || responseBody.isBlank()) {
+            return defaultMessage;
+        }
+
+        if ("err.booking_date_restricted".equalsIgnoreCase(responseBody.trim())) {
+            return defaultMessage;
+        }
+
+        return responseBody;
     }
 
     private record BookingCreateRequest(Long telegramUserId, Long slotId, String firstName, String lastName) {}
