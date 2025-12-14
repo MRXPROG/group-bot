@@ -23,6 +23,11 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @Component
@@ -50,6 +55,10 @@ public class TelegramBot extends TelegramLongPollingBot {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
+    private final ExecutorService defaultExecutor = Executors.newCachedThreadPool();
+    private final ConcurrentHashMap<Long, ExecutorService> chatExecutors = new ConcurrentHashMap<>();
+
+
     @Override
     public String getBotUsername() {
         return config.getBotName();
@@ -58,6 +67,32 @@ public class TelegramBot extends TelegramLongPollingBot {
     @Override
     public String getBotToken() {
         return config.getToken();
+    }
+
+
+    private static final int DEDUPE_CAP = 10000;
+    private final ConcurrentLinkedQueue<Integer> dedupeQueue = new ConcurrentLinkedQueue<>();
+    private final Set<Integer> processedUpdates = ConcurrentHashMap.newKeySet();
+
+    private boolean markSeen(int updateId) {
+        if (processedUpdates.add(updateId)) {
+            dedupeQueue.add(updateId);
+            while (dedupeQueue.size() > DEDUPE_CAP) {
+                Integer old = dedupeQueue.poll();
+                if (old != null) processedUpdates.remove(old);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private ExecutorService execFor(long chatId) {
+        return chatExecutors.computeIfAbsent(chatId, id -> Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r);
+            t.setName("chat-" + id);
+            t.setDaemon(true);
+            return t;
+        }));
     }
 
     @PostConstruct
@@ -73,22 +108,47 @@ public class TelegramBot extends TelegramLongPollingBot {
         leaderboardUpdater.updatePinnedLeaderboard(this);
     }
 
-    @Override
-    @SneakyThrows
-    public void onUpdateReceived(Update update) {
 
-        if (update.hasMessage() && update.getMessage().hasText()) {
-            handleMessage(update.getMessage());
+    @Override
+    public void onUpdateReceived(Update update) {
+        Integer uid = update.getUpdateId();
+        if (uid != null && !markSeen(uid)) {
+            return; // дубликат
+        }
+
+        Long chatId = extractChatId(update);
+        if (chatId == null) {
+            defaultExecutor.submit(() -> safeHandle(update));
             return;
         }
-        if (update.hasCallbackQuery()) {
-            handleCallback(update.getCallbackQuery());
+
+        execFor(chatId).submit(() -> safeHandle(update));
+    }
+
+    private void safeHandle(Update u) {
+        try {
+            if (u.hasMessage() && u.getMessage().hasText()) {
+                handleMessage(u.getMessage());
+                return;
+            }
+            if (u.hasCallbackQuery()) {
+                handleCallback(u.getCallbackQuery());
+            }
+        } catch (Exception e) {
+            log.error("handleUpdate failed", e);
         }
     }
 
-    // ============================================================
-    // ОБЩАЯ ОБРАБОТКА ТЕКСТОВЫХ СООБЩЕНИЙ
-    // ============================================================
+    private Long extractChatId(Update update) {
+        if (update.hasMessage() && update.getMessage().getChat() != null) {
+            return update.getMessage().getChatId();
+        }
+        if (update.hasCallbackQuery() && update.getCallbackQuery().getMessage() != null) {
+            return update.getCallbackQuery().getMessage().getChatId();
+        }
+        return null;
+    }
+
     @SneakyThrows
     private void handleMessage(Message msg) {
         String text = msg.getText().trim();
@@ -180,7 +240,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (!hasValidName(name)) {
             Message reply = execute(new SendMessage(
                     state.getChatId().toString(),
-                    "ℹ️ Вкажи, будь ласка, ім'я та прізвище (два слова) у своєму повідомленні."
+                    "ℹ️ Спробуй ще раз, будь ласка.\nВведи ім’я та прізвище (два слова) у своєму наступному повідомленні."
             ));
             cleaner.deleteLater(this, state.getChatId(), reply.getMessageId(), 5);
             cleaner.deleteLater(this, state.getChatId(), state.getUserMessage().getMessageId(), 5);
@@ -423,7 +483,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             edit.setText(text);
             edit.setReplyMarkup(buildSlotNavigationKeyboard(state.getToken(), total));
 
-            Message edited = execute(edit);
+            Message edited = (Message) execute(edit);
             state.setControlMessageId(edited.getMessageId());
         }
 
@@ -431,7 +491,6 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private String formatSlot(SlotDTO slot, int index, int total, String userFullName) {
-        String displayName = hasValidName(userFullName) ? userFullName : "—";
         String innLine = slot.isInnRequired() ? " • ІПН обов'язковий" : "";
         return ("""
                 Знайшлось %d змін за твоїм запитом.
@@ -449,7 +508,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                         slot.getStart().toLocalTime().format(TIME),
                         slot.getEnd().toLocalTime().format(TIME),
                         innLine,
-                        displayName
+                        userFullName
                 ).trim();
     }
 

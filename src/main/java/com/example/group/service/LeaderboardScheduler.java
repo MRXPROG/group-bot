@@ -18,7 +18,7 @@ public class LeaderboardScheduler {
         this.bot = bot;
     }
 
-    @Scheduled(cron = "0 */5 * * * *")
+    @Scheduled(cron = "0 */1 * * * *")
     public void refreshPinnedMessage() {
         if (bot == null) {
             log.warn("LeaderboardScheduler: bot is not set yet");

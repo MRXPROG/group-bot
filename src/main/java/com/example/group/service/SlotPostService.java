@@ -118,7 +118,7 @@ public class SlotPostService {
         List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
 
         if (activeBookings.isEmpty()) {
-            return "Працівники:\n" + wrapInCollapsedComment("поки нікого. Долучайся!");
+            return "Працівники:\n" + wrapInCollapsedComment("Наразі учасників немає.");
         }
 
         String list = activeBookings.stream()

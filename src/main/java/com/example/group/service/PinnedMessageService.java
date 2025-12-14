@@ -109,7 +109,7 @@ public class PinnedMessageService {
     private String buildFormattedMessage(List<UserScorePoints> sorted) {
         if (sorted.isEmpty()) {
             return """
-                    🏆 <u><b>Рейтинг активності учасників</b></u>
+                    \n 🏆 <u><b>Рейтинг активності учасників</b></u>
 
                     Будь першим! 💪
 
@@ -125,25 +125,23 @@ public class PinnedMessageService {
 
         int upperBound = Math.min(sorted.size(), 10);
         if (upperBound > 3) {
-            sb.append("\n<b>4–10 місця</b>\n");
+            sb.append("\n<b>4–10 місця</b>\n\n");
             appendPlaces(sorted, sb, 3, upperBound);
             sb.append("\n\n");
         }
 
         if (sorted.size() > 10) {
-            sb.append("\n<details>\n");
-            sb.append("<summary>📘 Показати повний рейтинг </summary>\n");
-            sb.append(wrapInCollapsedComment("Свернутый комментарий"));
-            sb.append("\n");
+            sb.append("<b>📘 Повний рейтинг</b>\n");
+            sb.append("<blockquote expandable>");
             appendPlaces(sorted, sb, 10, sorted.size());
-            sb.append("\n</details>\n");
-            sb.append("комментарий заканчиваеться\n");
+            sb.append("\n</blockquote>");
         }
 
-        sb.append("\n\n🕒 Оновлено: ").append(formattedNow());
+        sb.append("\n🕒 Оновлено: ").append(formattedNow());
 
         return sb.toString().trim();
     }
+
 
     private void appendTopThree(List<UserScorePoints> sorted, StringBuilder sb) {
         String[] medals = {"🥇", "🥈", "🥉"};
@@ -153,12 +151,14 @@ public class PinnedMessageService {
             UserScorePoints row = sorted.get(idx);
             sb.append(medals[idx])
                     .append(" ")
+                    .append("<b>")
                     .append(idx + 1)
+                    .append("</b>")
                     .append(". ")
                     .append(formatName(row))
                     .append(" — ")
                     .append(row.scorePoints())
-                    .append(" скорпоінтів");
+                    .append(" поінтів");
             if (idx < top - 1) {
                 sb.append("\n");
             }
@@ -181,7 +181,7 @@ public class PinnedMessageService {
                     .append(formatName(row))
                     .append(" — ")
                     .append(row.scorePoints())
-                    .append(" скорпоінтів");
+                    .append(" поінтів");
 
             if (idx < toExclusive - 1) {
                 sb.append("\n");
@@ -208,9 +208,5 @@ public class PinnedMessageService {
 
     private String formattedNow() {
         return ZonedDateTime.now(KYIV_ZONE).format(TS);
-    }
-
-    private String wrapInCollapsedComment(String text) {
-        return "<!--\n" + text + "\n-->";
     }
 }
