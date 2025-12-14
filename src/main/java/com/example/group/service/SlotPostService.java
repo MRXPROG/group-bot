@@ -60,8 +60,14 @@ public class SlotPostService {
 
         String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
 
-        int activeBookings = countActiveBookings(s);
-        String employees = buildEmployeeBlock(s.getBookings());
+        List<SlotBookingDTO> safeBookings = Optional.ofNullable(s.getBookings()).orElse(Collections.emptyList());
+        List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
+        int activeCount = Math.max(s.getBookedCount(), activeBookings.size());
+
+        String employees = buildEmployeeBlock(activeBookings, activeCount);
+        String fullNotice = activeCount >= s.getCapacity()
+                ? "\n\n⚠️ Зміна поки повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
+                : "";
 
         String text = """
                 📢 Нова зміна - запис відкрито!
@@ -79,10 +85,10 @@ public class SlotPostService {
                 date,
                 day,
                 time,
-                activeBookings,
+                activeCount,
                 s.getCapacity(),
                 innLine,
-                employees
+                employees + fullNotice
         ).trim();
 
         InlineKeyboardButton join = new InlineKeyboardButton();
@@ -113,17 +119,20 @@ public class SlotPostService {
         }
     }
 
-    private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
-        List<SlotBookingDTO> safeBookings = Optional.ofNullable(bookings).orElse(Collections.emptyList());
-        List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
-
-        if (activeBookings.isEmpty()) {
+    private String buildEmployeeBlock(List<SlotBookingDTO> activeBookings, int activeCount) {
+        if (activeCount == 0) {
             return "Працівники:\n" + wrapInCollapsedComment("Наразі учасників немає.");
         }
 
         String list = activeBookings.stream()
                 .map(this::formatBookingLine)
                 .collect(Collectors.joining("\n"));
+
+        int missingNames = Math.max(0, activeCount - activeBookings.size());
+        if (missingNames > 0) {
+            String pendingLine = "⏳ +" + missingNames + " учасн.";
+            list = list.isBlank() ? pendingLine : list + "\n" + pendingLine;
+        }
 
         return "Працівники:\n" + wrapInCollapsedComment(list);
     }
@@ -136,14 +145,6 @@ public class SlotPostService {
                     return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
                 })
                 .toList();
-    }
-
-    private int countActiveBookings(SlotDTO slot) {
-        List<SlotBookingDTO> bookings = Optional.ofNullable(slot.getBookings()).orElse(Collections.emptyList());
-        if (!bookings.isEmpty()) {
-            return filterActiveBookings(bookings).size();
-        }
-        return slot.getBookedCount();
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
