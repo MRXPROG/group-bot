@@ -10,11 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -42,10 +42,17 @@ public class EveningScheduler {
         }
 
         LocalDate today = LocalDate.now();
-        LocalDate tomorrow = today.plusDays(1);
+        Set<LocalDate> datesToPost = new LinkedHashSet<>();
+        datesToPost.add(today);
+        datesToPost.add(today.plusDays(1));
 
-        List<SlotDTO> todaySlots = api.getSlotsForDate(today);
-        List<SlotDTO> tomorrowSlots = api.getSlotsForDate(tomorrow);
+        DayOfWeek dayOfWeek = today.getDayOfWeek();
+        if (dayOfWeek == DayOfWeek.FRIDAY) {
+            datesToPost.add(today.plusDays(2));
+            datesToPost.add(today.plusDays(3));
+        } else if (dayOfWeek == DayOfWeek.SATURDAY) {
+            datesToPost.add(today.plusDays(2));
+        }
 
         Set<Long> postedSlotIds = new HashSet<>(
                 shiftMsgRepo.findAllByChatId(groupChatId).stream()
@@ -53,7 +60,8 @@ public class EveningScheduler {
                         .toList()
         );
 
-        Stream.concat(todaySlots.stream(), tomorrowSlots.stream())
+        datesToPost.stream()
+                .flatMap(date -> api.getSlotsForDate(date).stream())
                 .filter(slot -> postedSlotIds.add(slot.getId()))
                 .forEach(slot -> {
                     try {
