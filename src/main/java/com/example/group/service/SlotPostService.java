@@ -61,12 +61,10 @@ public class SlotPostService {
 
         String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
 
-        List<SlotBookingDTO> safeBookings = Optional.ofNullable(s.getBookings()).orElse(Collections.emptyList());
-        List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
-        int activeCount = activeBookings.size();
+        int activeBookings = countActiveBookings(s);
+        String employees = buildEmployeeBlock(s.getBookings());
 
-        String employees = buildEmployeeBlock(activeBookings);
-        String fullNotice = activeCount >= s.getCapacity()
+        String fullNotice = activeBookings >= s.getCapacity()
                 ? "\n\n⚠️ Зміна поки повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
                 : "";
 
@@ -86,7 +84,7 @@ public class SlotPostService {
                 date,
                 day,
                 time,
-                activeCount,
+                activeBookings,
                 s.getCapacity(),
                 innLine,
                 employees + fullNotice
@@ -120,7 +118,10 @@ public class SlotPostService {
         }
     }
 
-    private String buildEmployeeBlock(List<SlotBookingDTO> activeBookings) {
+    private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
+        List<SlotBookingDTO> safeBookings = Optional.ofNullable(bookings).orElse(Collections.emptyList());
+        List<SlotBookingDTO> activeBookings = filterActiveBookings(safeBookings);
+
         if (activeBookings.isEmpty()) {
             return "Працівники:\n" + wrapInCollapsedComment("Наразі учасників немає.");
         }
@@ -134,10 +135,20 @@ public class SlotPostService {
 
     private List<SlotBookingDTO> filterActiveBookings(List<SlotBookingDTO> bookings) {
         return bookings.stream()
-                .filter(b -> Optional.ofNullable(b.getStatus())
-                        .map(status -> status != Booking.BookingStatus.CANCELLED)
-                        .orElse(true))
+                .filter(b -> {
+                    Booking.BookingStatus status = Optional.ofNullable(b.getStatus())
+                            .orElse(Booking.BookingStatus.PENDING);
+                    return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
+                })
                 .toList();
+    }
+
+    private int countActiveBookings(SlotDTO slot) {
+        List<SlotBookingDTO> bookings = Optional.ofNullable(slot.getBookings()).orElse(Collections.emptyList());
+        if (!bookings.isEmpty()) {
+            return filterActiveBookings(bookings).size();
+        }
+        return slot.getBookedCount();
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
