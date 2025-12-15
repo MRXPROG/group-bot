@@ -61,15 +61,27 @@ public class SlotPostService {
 
         String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
 
+        int capacity = s.getCapacity();
         int activeBookings = countActiveBookings(s);
+        boolean hasNoSlots = capacity <= 0;
+        int totalPlaces = hasNoSlots ? Math.max(1, activeBookings) : Math.max(capacity, activeBookings);
+        boolean isFull = hasNoSlots || activeBookings >= capacity;
+        boolean isReserved = s.getStatus() == SlotDTO.SlotStatus.RESERVED;
+
         String employees = buildEmployeeBlock(s.getBookings());
 
-        String fullNotice = activeBookings >= s.getCapacity()+activeBookings
-                ? "\n\n⚠️ Зміна поки повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
+        String fullNotice = isReserved
+                ? "\n\n⏸ Запис призупинено. Слідкуй за оновленнями."
+                : isFull
+                ? "\n\n⚠️ Зміна повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
                 : "";
 
+        String title = isReserved
+                ? "⏸ Зміна у резерві"
+                : (isFull ? "⚠️ Зміна поки повна" : "📢 Нова зміна - запис відкрито!");
+
         String text = """
-                📢 Нова зміна - запис відкрито!
+                %s
 
                 📍 %s
                 🏙️ %s
@@ -79,23 +91,27 @@ public class SlotPostService {
 
                 %s
                 """.formatted(
+                title,
                 escapeHtml(s.getPlaceName()),
                 escapeHtml(s.getCityName()),
                 date,
                 day,
                 time,
                 activeBookings,
-                s.getCapacity() + activeBookings,
+                totalPlaces,
                 innLine,
                 employees + fullNotice
         ).trim();
 
-        InlineKeyboardButton join = new InlineKeyboardButton();
-        join.setText("\uD83D\uDD17  Записатись на цю зміну у боті  \uD83D\uDD17 ");
-        join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
+        InlineKeyboardMarkup kb = null;
+        if (!isFull && !isReserved) {
+            InlineKeyboardButton join = new InlineKeyboardButton();
+            join.setText("\uD83D\uDD17  Записатись на цю зміну у боті  \uD83D\uDD17 ");
+            join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
 
-        InlineKeyboardMarkup kb = new InlineKeyboardMarkup();
-        kb.setKeyboard(List.of(List.of(join)));
+            kb = new InlineKeyboardMarkup();
+            kb.setKeyboard(List.of(List.of(join)));
+        }
 
         Optional<GroupShiftMessage> existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
 

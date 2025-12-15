@@ -152,7 +152,7 @@ public class SlotPostUpdater {
                 .map(this::bookingSignature)
                 .toList();
 
-        return new SlotSnapshot(slot.getCapacity(), activeCount, participants);
+        return new SlotSnapshot(slot.getCapacity(), activeCount, participants, slot.getStatus());
     }
 
     private boolean isActiveBooking(SlotBookingDTO booking) {
@@ -168,19 +168,20 @@ public class SlotPostUpdater {
         return status + ":" + first + ":" + last;
     }
 
-    private record SlotSnapshot(int capacity, int activeBookings, List<String> participants) {
+    private record SlotSnapshot(int capacity, int activeBookings, List<String> participants, SlotDTO.SlotStatus status) {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof SlotSnapshot that)) return false;
             return capacity == that.capacity
                     && activeBookings == that.activeBookings
+                    && status == that.status
                     && Objects.equals(participants, that.participants);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(capacity, activeBookings, participants);
+            return Objects.hash(capacity, activeBookings, participants, status);
         }
     }
 }
