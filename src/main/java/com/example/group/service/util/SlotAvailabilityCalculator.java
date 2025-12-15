@@ -9,19 +9,8 @@ public final class SlotAvailabilityCalculator {
         int safeCapacity = Math.max(0, capacity);
         int safeBookings = Math.max(0, activeBookings);
 
-        int totalPlaces;
-        int availablePlaces;
-
-        if (safeCapacity < safeBookings) {
-            totalPlaces = safeCapacity + safeBookings;
-            availablePlaces = safeCapacity;
-        } else {
-            totalPlaces = safeCapacity;
-            availablePlaces = safeCapacity - safeBookings;
-        }
-
-        totalPlaces = Math.max(totalPlaces, safeBookings);
-        availablePlaces = Math.max(availablePlaces, 0);
+        int totalPlaces = safeCapacity + safeBookings;
+        int availablePlaces = safeCapacity;
 
         return new SlotAvailability(safeBookings, totalPlaces, availablePlaces);
     }
