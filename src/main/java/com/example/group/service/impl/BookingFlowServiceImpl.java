@@ -2,6 +2,7 @@ package com.example.group.service.impl;
 
 import com.example.group.controllers.MainBotApiClient;
 import com.example.group.dto.SlotDTO;
+import com.example.group.model.Booking;
 import com.example.group.model.UserFlowState;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
@@ -52,10 +53,16 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         NameParts names = resolveNames(msg, userFullName);
         String confirmedName = (names.firstName() + " " + names.lastName()).trim();
 
+        SlotDTO actualSlot = reloadSlot(slot);
+        if (actualSlot == null || isSlotUnavailable(actualSlot)) {
+            informUnavailable(bot, chatId, msg.getMessageId());
+            return;
+        }
+
         stateRepo.findByUserId(userId)
                 .ifPresent(state -> expireFlow(bot, state, null));
 
-        String innLine = slot.isInnRequired()
+        String innLine = actualSlot.isInnRequired()
                 ? " • ІПН обов'язковий"
                 : "";
 
@@ -66,10 +73,10 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                 👤 Ім'я в заявці: %s
                 """
         ).formatted(
-                slot.getPlaceName(),
-                slot.getStart().toLocalDate().format(DATE),
-                slot.getStart().toLocalTime().format(TIME),
-                slot.getEnd().toLocalTime().format(TIME),
+                actualSlot.getPlaceName(),
+                actualSlot.getStart().toLocalDate().format(DATE),
+                actualSlot.getStart().toLocalTime().format(TIME),
+                actualSlot.getEnd().toLocalTime().format(TIME),
                 innLine,
                 confirmedName
         );
@@ -88,7 +95,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                     .lastName(names.lastName())
                     .userMessageId(msg.getMessageId())
                     .botMessageId(botMsg.getMessageId())
-                    .slotId(slot.getId())
+                    .slotId(actualSlot.getId())
                     .expiresAt(LocalDateTime.now().plusSeconds(30))
                     .build();
 
@@ -110,6 +117,13 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
         if ("YES".equalsIgnoreCase(decision)) {
             try {
+                SlotDTO slot = reloadSlot(state.getSlotId());
+                if (slot == null || isSlotUnavailable(slot)) {
+                    informUnavailable(bot, state.getChatId(), resolveReplyMessageId(state));
+                    expireFlow(bot, state, cbq);
+                    return;
+                }
+
                 String firstName = state.getFirstName();
                 String lastName = state.getLastName();
 
@@ -278,6 +292,59 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                     log.info("BookingFlow: removing stale shift message record {} for slot {}", replyTo, slotId);
                     shiftMsgRepo.delete(record);
                 });
+    }
+
+    private SlotDTO reloadSlot(SlotDTO slot) {
+        if (slot == null || slot.getId() == null) {
+            return null;
+        }
+        return Optional.ofNullable(mainApi.getSlotById(slot.getId())).orElse(slot);
+    }
+
+    private SlotDTO reloadSlot(Long slotId) {
+        if (slotId == null) {
+            return null;
+        }
+        return mainApi.getSlotById(slotId);
+    }
+
+    private boolean isSlotUnavailable(SlotDTO slot) {
+        if (slot == null) {
+            return true;
+        }
+
+        boolean reserved = slot.getStatus() == SlotDTO.SlotStatus.RESERVED;
+        int capacity = slot.getCapacity();
+        boolean full = capacity <= 0 || countActiveBookings(slot) >= capacity;
+        return reserved || full;
+    }
+
+    private int countActiveBookings(SlotDTO slot) {
+        List<com.example.group.dto.SlotBookingDTO> bookings = Optional.ofNullable(slot.getBookings())
+                .orElse(List.of());
+        if (!bookings.isEmpty()) {
+            return (int) bookings.stream()
+                    .filter(this::isActiveBooking)
+                    .count();
+        }
+        return slot.getBookedCount();
+    }
+
+    private boolean isActiveBooking(com.example.group.dto.SlotBookingDTO booking) {
+        Booking.BookingStatus status = Optional.ofNullable(booking.getStatus())
+                .orElse(Booking.BookingStatus.PENDING);
+        return status == Booking.BookingStatus.PENDING || status == Booking.BookingStatus.CONFIRMED;
+    }
+
+    private void informUnavailable(TelegramLongPollingBot bot, Long chatId, Integer replyTo) {
+        try {
+            SendMessage info = new SendMessage(chatId.toString(), "⏳ Запис на зміну наразі недоступний.");
+            info.setReplyToMessageId(replyTo);
+            Message m = sendWithReplyFallback(bot, info, chatId, null);
+            cleaner.deleteLater(bot, chatId, m.getMessageId(), 15);
+        } catch (Exception e) {
+            log.warn("Failed to inform about unavailable slot: {}", e.getMessage());
+        }
     }
 
     private boolean isMessageMissing(TelegramApiException e) {

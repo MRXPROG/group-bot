@@ -23,5 +23,9 @@ public class SlotDTO {
     private int bookedCount;
     private boolean innRequired;
 
+    private SlotStatus status = SlotStatus.READY;
+
     private List<SlotBookingDTO> bookings = new ArrayList<>();
+
+    public enum SlotStatus { READY, RESERVED, COMPLETED }
 }
