@@ -2,10 +2,7 @@ package com.example.group.service;
 
 import com.example.group.config.BotConfig;
 import com.example.group.controllers.MainBotApiClient;
-import com.example.group.dto.ParsedShiftRequest;
 import com.example.group.dto.SlotDTO;
-import com.example.group.service.BotSettingsService;
-import com.example.group.service.BookingRequestCache;
 import com.example.group.repository.GroupShiftMessageRepository;
 import com.example.group.service.util.MessageCleaner;
 import com.example.group.repository.UserFlowStateRepository;
@@ -19,7 +16,6 @@ import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.*;
-import org.telegram.telegrambots.meta.api.objects.maybe.MaybeInaccessibleMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 
@@ -118,11 +114,11 @@ public class TelegramBot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         Integer uid = update.getUpdateId();
         if (uid != null && !markSeen(uid)) {
-            return; // дубликат
+            return;
         }
 
         if (!isAllowedTopic(update)) {
-            return; // игнорируем сообщения из сторонних топиков
+            return;
         }
 
         Long chatId = extractChatId(update);
@@ -155,13 +151,15 @@ public class TelegramBot extends TelegramLongPollingBot {
             threadId = update.getMessage().getMessageThreadId();
         } else if (update.hasCallbackQuery()) {
             MaybeInaccessibleMessage m = update.getCallbackQuery().getMessage();
-            if (m != null) {
-                threadId = m.getMessageThreadId();
+
+            if (m instanceof Message message) {
+                return message.getMessageThreadId() == null;
             }
         }
 
-        return threadId == null || threadId == 1; // allow main topic (1) and no-topic messages
+        return threadId == null || threadId == 1;
     }
+
 
     private Long extractChatId(Update update) {
         if (update.hasMessage() && update.getMessage().getChat() != null) {
@@ -189,9 +187,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         handlePatternMessage(msg);
     }
 
-    // ============================================================
-    // /bind — привязка бота к группе
-    // ============================================================
     @SneakyThrows
     private void handleBindCommand(Message msg) {
         Chat chat = msg.getChat();
@@ -201,7 +196,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (!isGroup) {
             execute(new SendMessage(
                     msg.getChatId().toString(),
-                    "Працівники доступні тільки в групі"
+                    "Бот доступний тільки в групі"
             ));
             return;
         }
@@ -225,7 +220,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         String text = msg.getText().trim();
 
         var parsedOpt = patternParser.parse(text);
-        if (parsedOpt.isEmpty()) return; // сообщение не по шаблону
+        if (parsedOpt.isEmpty()) return;
 
         var req = parsedOpt.get();
         log.info("Pattern recognized from {} => {}", userId, req);
@@ -348,7 +343,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (slot == null) {
             Message reply = execute(new SendMessage(
                     chatId.toString(),
-                    "⚠️ Не можу знайти цю зміну. Спробуй іншу."
+                    "⚠️ Не можу знайти цю зміну, чи вона повна. Спробуй іншу."
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
             cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);
