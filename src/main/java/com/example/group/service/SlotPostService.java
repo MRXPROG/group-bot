@@ -6,6 +6,8 @@ import com.example.group.dto.SlotDTO;
 import com.example.group.model.Booking;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
+import com.example.group.service.util.SlotAvailabilityCalculator;
+import com.example.group.service.util.SlotAvailabilityCalculator.SlotAvailability;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -61,14 +63,13 @@ public class SlotPostService {
 
         String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
 
-        int capacity = s.getCapacity();
-        int freePlaces = s.getCapacity();
         int activeBookings = countActiveBookings(s);
+        SlotAvailability availability = SlotAvailabilityCalculator.calculate(s.getCapacity(), activeBookings);
 
-        int totalPlaces = freePlaces + activeBookings;
+        int totalPlaces = availability.totalPlaces();
 
-        boolean isFull = freePlaces <= 0;
-        boolean isReserved = resolveStatus(s) == SlotDTO.SlotStatus.RESERVED;
+        boolean isFull = availability.isFull();
+        boolean isReserved = resolveStatus(s, availability) == SlotDTO.SlotStatus.RESERVED;
 
         String employees = buildEmployeeBlock(s.getBookings());
 
@@ -99,7 +100,7 @@ public class SlotPostService {
                 date,
                 day,
                 time,
-                activeBookings,
+                availability.activeBookings(),
                 totalPlaces,
                 innLine,
                 employees + fullNotice
@@ -169,12 +170,16 @@ public class SlotPostService {
         return slot.getBookedCount();
     }
 
-    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot) {
+    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot, SlotAvailability availability) {
         if (slot == null) {
             return SlotDTO.SlotStatus.READY;
         }
 
-        if (slot.getCapacity() <= 0) {
+        if (slot.getStatus() == SlotDTO.SlotStatus.RESERVED) {
+            return SlotDTO.SlotStatus.RESERVED;
+        }
+
+        if (availability.isFull()) {
             return SlotDTO.SlotStatus.RESERVED;
         }
 
