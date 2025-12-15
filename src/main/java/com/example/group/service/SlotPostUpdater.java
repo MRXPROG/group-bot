@@ -142,7 +142,7 @@ public class SlotPostUpdater {
     }
 
     private SlotSnapshot captureSnapshot(SlotDTO slot) {
-        int activeCount = slot.getBookedCount();
+        int activeCount = countActiveBookings(slot);
 
         List<String> participants = Optional.ofNullable(slot.getBookings())
                 .orElse(List.of())
@@ -157,6 +157,17 @@ public class SlotPostUpdater {
                 participants,
                 slot.getStatus()
         );
+    }
+
+    private int countActiveBookings(SlotDTO slot) {
+        List<SlotBookingDTO> bookings = Optional.ofNullable(slot.getBookings()).orElse(List.of());
+        if (!bookings.isEmpty()) {
+            return (int) bookings.stream()
+                    .filter(this::isActiveBooking)
+                    .count();
+        }
+
+        return slot.getBookedCount();
     }
 
     private boolean isActiveBooking(SlotBookingDTO booking) {
