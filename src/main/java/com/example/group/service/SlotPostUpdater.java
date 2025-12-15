@@ -6,6 +6,8 @@ import com.example.group.dto.SlotDTO;
 import com.example.group.model.Booking;
 import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
+import com.example.group.service.util.SlotAvailabilityCalculator;
+import com.example.group.service.util.SlotAvailabilityCalculator.SlotAvailability;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -143,6 +145,7 @@ public class SlotPostUpdater {
 
     private SlotSnapshot captureSnapshot(SlotDTO slot) {
         int activeCount = countActiveBookings(slot);
+        SlotAvailability availability = SlotAvailabilityCalculator.calculate(slot.getCapacity(), activeCount);
 
         List<String> participants = Optional.ofNullable(slot.getBookings())
                 .orElse(List.of())
@@ -154,8 +157,9 @@ public class SlotPostUpdater {
         return new SlotSnapshot(
                 slot.getCapacity(),
                 activeCount,
+                availability.availablePlaces(),
                 participants,
-                resolveStatus(slot)
+                resolveStatus(slot, availability)
         );
     }
 
@@ -176,12 +180,16 @@ public class SlotPostUpdater {
         return status == Booking.BookingStatus.CONFIRMED || status == Booking.BookingStatus.PENDING;
     }
 
-    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot) {
+    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot, SlotAvailability availability) {
         if (slot == null) {
             return SlotDTO.SlotStatus.READY;
         }
 
-        if (slot.getCapacity() <= 0) {
+        if (slot.getStatus() == SlotDTO.SlotStatus.RESERVED) {
+            return SlotDTO.SlotStatus.RESERVED;
+        }
+
+        if (availability.isFull()) {
             return SlotDTO.SlotStatus.RESERVED;
         }
 
@@ -195,20 +203,21 @@ public class SlotPostUpdater {
         return status + ":" + first + ":" + last;
     }
 
-    private record SlotSnapshot(int capacity, int activeBookings, List<String> participants, SlotDTO.SlotStatus status) {
+    private record SlotSnapshot(int capacity, int activeBookings, int freePlaces, List<String> participants, SlotDTO.SlotStatus status) {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (!(o instanceof SlotSnapshot that)) return false;
             return capacity == that.capacity
                     && activeBookings == that.activeBookings
+                    && freePlaces == that.freePlaces
                     && status == that.status
                     && Objects.equals(participants, that.participants);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(capacity, activeBookings, participants, status);
+            return Objects.hash(capacity, activeBookings, freePlaces, participants, status);
         }
     }
 }

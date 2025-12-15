@@ -12,6 +12,8 @@ import com.example.group.service.SlotPostUpdater;
 import com.example.group.service.util.MessageCleaner;
 import com.example.group.service.exception.BookingConflictException;
 import com.example.group.service.exception.BookingTimeRestrictionException;
+import com.example.group.service.util.SlotAvailabilityCalculator;
+import com.example.group.service.util.SlotAvailabilityCalculator.SlotAvailability;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -313,8 +315,11 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             return true;
         }
 
+        int activeBookings = countActiveBookings(slot);
+        SlotAvailability availability = SlotAvailabilityCalculator.calculate(slot.getCapacity(), activeBookings);
+
         boolean reserved = slot.getStatus() == SlotDTO.SlotStatus.RESERVED;
-        boolean full = slot.getCapacity() <= 0;
+        boolean full = availability.isFull();
 
         return reserved || full;
     }
