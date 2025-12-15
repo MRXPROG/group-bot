@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface UserFlowStateRepository extends JpaRepository<UserFlowState, Long> {
     Optional<UserFlowState> findByUserId(Long userId);
 
+    Optional<UserFlowState> findByChatIdAndBotMessageId(Long chatId, Integer botMessageId);
+
     @Query("select f from UserFlowState f where f.expiresAt < :now")
     List<UserFlowState> findExpired(@Param("now") LocalDateTime now);
 }
