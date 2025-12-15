@@ -155,7 +155,7 @@ public class SlotPostUpdater {
                 slot.getCapacity(),
                 activeCount,
                 participants,
-                slot.getStatus()
+                resolveStatus(slot)
         );
     }
 
@@ -174,6 +174,18 @@ public class SlotPostUpdater {
         Booking.BookingStatus status = Optional.ofNullable(booking.getStatus())
                 .orElse(Booking.BookingStatus.PENDING);
         return status == Booking.BookingStatus.CONFIRMED || status == Booking.BookingStatus.PENDING;
+    }
+
+    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot) {
+        if (slot == null) {
+            return SlotDTO.SlotStatus.READY;
+        }
+
+        if (slot.getCapacity() <= 0) {
+            return SlotDTO.SlotStatus.RESERVED;
+        }
+
+        return Optional.ofNullable(slot.getStatus()).orElse(SlotDTO.SlotStatus.READY);
     }
 
     private String bookingSignature(SlotBookingDTO booking) {

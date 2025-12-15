@@ -68,7 +68,7 @@ public class SlotPostService {
         int totalPlaces = freePlaces + activeBookings;
 
         boolean isFull = freePlaces <= 0;
-        boolean isReserved = s.getStatus() == SlotDTO.SlotStatus.RESERVED;
+        boolean isReserved = resolveStatus(s) == SlotDTO.SlotStatus.RESERVED;
 
         String employees = buildEmployeeBlock(s.getBookings());
 
@@ -167,6 +167,18 @@ public class SlotPostService {
             return filterActiveBookings(bookings).size();
         }
         return slot.getBookedCount();
+    }
+
+    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot) {
+        if (slot == null) {
+            return SlotDTO.SlotStatus.READY;
+        }
+
+        if (slot.getCapacity() <= 0) {
+            return SlotDTO.SlotStatus.RESERVED;
+        }
+
+        return Optional.ofNullable(slot.getStatus()).orElse(SlotDTO.SlotStatus.READY);
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
