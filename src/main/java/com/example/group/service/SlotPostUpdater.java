@@ -159,7 +159,7 @@ public class SlotPostUpdater {
                 activeCount,
                 availability.availablePlaces(),
                 participants,
-                resolveStatus(slot, availability)
+                resolveStatus(slot)
         );
     }
 
@@ -180,17 +180,9 @@ public class SlotPostUpdater {
         return status == Booking.BookingStatus.CONFIRMED || status == Booking.BookingStatus.PENDING;
     }
 
-    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot, SlotAvailability availability) {
+    private SlotDTO.SlotStatus resolveStatus(SlotDTO slot) {
         if (slot == null) {
             return SlotDTO.SlotStatus.READY;
-        }
-
-        if (slot.getStatus() == SlotDTO.SlotStatus.RESERVED) {
-            return SlotDTO.SlotStatus.RESERVED;
-        }
-
-        if (availability.isFull()) {
-            return SlotDTO.SlotStatus.RESERVED;
         }
 
         return Optional.ofNullable(slot.getStatus()).orElse(SlotDTO.SlotStatus.READY);
