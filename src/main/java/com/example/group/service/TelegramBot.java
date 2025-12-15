@@ -149,16 +149,18 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private boolean isAllowedTopic(Update update) {
+        Integer threadId = null;
+
         if (update.hasMessage()) {
-            return update.getMessage().getMessageThreadId() == null;
-        }
-
-        if (update.hasCallbackQuery()) {
+            threadId = update.getMessage().getMessageThreadId();
+        } else if (update.hasCallbackQuery()) {
             MaybeInaccessibleMessage m = update.getCallbackQuery().getMessage();
-            return m != null && m.getMessageThreadId() == null;
+            if (m != null) {
+                threadId = m.getMessageThreadId();
+            }
         }
 
-        return false;
+        return threadId == null || threadId == 1; // allow main topic (1) and no-topic messages
     }
 
     private Long extractChatId(Update update) {
