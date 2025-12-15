@@ -120,6 +120,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             return; // дубликат
         }
 
+        if (!isAllowedTopic(update)) {
+            return; // игнорируем сообщения из сторонних топиков
+        }
+
         Long chatId = extractChatId(update);
         if (chatId == null) {
             defaultExecutor.submit(() -> safeHandle(update));
@@ -141,6 +145,19 @@ public class TelegramBot extends TelegramLongPollingBot {
         } catch (Exception e) {
             log.error("handleUpdate failed", e);
         }
+    }
+
+    private boolean isAllowedTopic(Update update) {
+        if (update.hasMessage()) {
+            return update.getMessage().getMessageThreadId() == null;
+        }
+
+        if (update.hasCallbackQuery()) {
+            Message m = update.getCallbackQuery().getMessage();
+            return m != null && m.getMessageThreadId() == null;
+        }
+
+        return false;
     }
 
     private Long extractChatId(Update update) {
