@@ -8,6 +8,7 @@ import com.example.group.service.BotSettingsService;
 import com.example.group.service.BookingRequestCache;
 import com.example.group.repository.GroupShiftMessageRepository;
 import com.example.group.service.util.MessageCleaner;
+import com.example.group.repository.UserFlowStateRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -52,6 +53,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private final SlotPostUpdater slotPostUpdater;
     private final BookingRequestCache requestCache;
     private final GroupShiftMessageRepository shiftMsgRepo;
+    private final UserFlowStateRepository flowStateRepo;
     private final MainBotApiClient mainApi;
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd.MM.yyyy");
@@ -283,11 +285,27 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         Long slotId = Long.parseLong(p[1]);
-        Long initiatorId = Long.parseLong(p[2]);
         String decision = p[3];
 
-        if (!userId.equals(initiatorId)) {
+        Long chatId = cbq.getMessage().getChatId();
+        Integer botMessageId = cbq.getMessage().getMessageId();
+
+        var stateOpt = flowStateRepo.findByChatIdAndBotMessageId(chatId, botMessageId);
+        if (stateOpt.isEmpty()) {
+            answer(cbq.getId(), "⏳ Час вийшов. Створи нову заявку.");
+            cleaner.deleteNow(this, chatId, botMessageId);
+            return;
+        }
+
+        var state = stateOpt.get();
+        if (!userId.equals(state.getUserId())) {
             answer(cbq.getId(), "❌ Ця кнопка не для тебе");
+            return;
+        }
+
+        if (!slotId.equals(state.getSlotId())) {
+            answer(cbq.getId(), "⏳ Час вийшов. Створи нову заявку.");
+            cleaner.deleteNow(this, chatId, botMessageId);
             return;
         }
 
