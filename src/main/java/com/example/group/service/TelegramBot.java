@@ -181,7 +181,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (!isGroup) {
             execute(new SendMessage(
                     msg.getChatId().toString(),
-                    "Працівники доступні тільки в групі"
+                    "Бот доступний тільки в групі"
             ));
             return;
         }
@@ -328,7 +328,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (slot == null) {
             Message reply = execute(new SendMessage(
                     chatId.toString(),
-                    "⚠️ Не можу знайти цю зміну. Спробуй іншу."
+                    "⚠️ Не можу знайти цю зміну, чи вона повна. Спробуй іншу."
             ));
             cleaner.deleteLater(this, chatId, reply.getMessageId(), 15);
             cleaner.deleteLater(this, chatId, msg.getMessageId(), 15);

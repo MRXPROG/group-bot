@@ -141,7 +141,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
                 SendMessage done = new SendMessage(
                         state.getChatId().toString(),
-                        "✅ Заявку прийнято. Статус дивись у головному боті"
+                        "✅ Заявку прийнято. Статус дивись у головному боті чи у повідомленні в пості"
                 );
                 done.setReplyToMessageId(resolveReplyMessageId(state));
 
