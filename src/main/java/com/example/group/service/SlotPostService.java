@@ -64,7 +64,7 @@ public class SlotPostService {
         int activeBookings = countActiveBookings(s);
         String employees = buildEmployeeBlock(s.getBookings());
 
-        String fullNotice = activeBookings >= s.getCapacity()
+        String fullNotice = activeBookings >= s.getCapacity()+activeBookings
                 ? "\n\n⚠️ Зміна поки повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
                 : "";
 
@@ -85,7 +85,7 @@ public class SlotPostService {
                 day,
                 time,
                 activeBookings,
-                s.getCapacity(),
+                s.getCapacity() + activeBookings,
                 innLine,
                 employees + fullNotice
         ).trim();
