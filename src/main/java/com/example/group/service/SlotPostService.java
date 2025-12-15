@@ -62,10 +62,12 @@ public class SlotPostService {
         String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
 
         int capacity = s.getCapacity();
+        int freePlaces = s.getCapacity();
         int activeBookings = countActiveBookings(s);
-        boolean hasNoSlots = capacity <= 0;
-        int totalPlaces = hasNoSlots ? Math.max(1, activeBookings) : Math.max(capacity, activeBookings);
-        boolean isFull = hasNoSlots || activeBookings >= capacity;
+
+        int totalPlaces = freePlaces + activeBookings;
+
+        boolean isFull = freePlaces <= 0;
         boolean isReserved = s.getStatus() == SlotDTO.SlotStatus.RESERVED;
 
         String employees = buildEmployeeBlock(s.getBookings());

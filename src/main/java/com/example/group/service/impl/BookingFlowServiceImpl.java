@@ -314,8 +314,8 @@ public class BookingFlowServiceImpl implements BookingFlowService {
         }
 
         boolean reserved = slot.getStatus() == SlotDTO.SlotStatus.RESERVED;
-        int capacity = slot.getCapacity();
-        boolean full = capacity <= 0 || countActiveBookings(slot) >= capacity;
+        boolean full = slot.getCapacity() <= 0;
+
         return reserved || full;
     }
 

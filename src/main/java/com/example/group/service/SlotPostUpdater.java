@@ -39,7 +39,7 @@ public class SlotPostUpdater {
         this.bot = bot;
     }
 
-    @Scheduled(cron = "0 */3 * * * *")
+    @Scheduled(cron = "0 */1 * * * *")
     public void refreshSlotPosts() {
         if (bot == null) {
             log.warn("SlotPostUpdater: bot is not set yet");
@@ -142,17 +142,21 @@ public class SlotPostUpdater {
     }
 
     private SlotSnapshot captureSnapshot(SlotDTO slot) {
-        List<SlotBookingDTO> bookings = Optional.ofNullable(slot.getBookings()).orElse(List.of());
-        List<SlotBookingDTO> activeBookings = bookings.stream()
-                .filter(this::isActiveBooking)
-                .toList();
+        int activeCount = slot.getBookedCount();
 
-        int activeCount = !activeBookings.isEmpty() ? activeBookings.size() : slot.getBookedCount();
-        List<String> participants = activeBookings.stream()
+        List<String> participants = Optional.ofNullable(slot.getBookings())
+                .orElse(List.of())
+                .stream()
+                .filter(this::isActiveBooking)
                 .map(this::bookingSignature)
                 .toList();
 
-        return new SlotSnapshot(slot.getCapacity(), activeCount, participants, slot.getStatus());
+        return new SlotSnapshot(
+                slot.getCapacity(),
+                activeCount,
+                participants,
+                slot.getStatus()
+        );
     }
 
     private boolean isActiveBooking(SlotBookingDTO booking) {
