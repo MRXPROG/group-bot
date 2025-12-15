@@ -24,10 +24,12 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Component
@@ -338,7 +340,26 @@ public class TelegramBot extends TelegramLongPollingBot {
         prompt.setReplyToMessageId(replyToMessageId != null ? replyToMessageId : msg.getMessageId());
         prompt.setReplyMarkup(buildIntentKeyboard(token));
 
-        execute(prompt);
+        Message promptMessage = execute(prompt);
+        requestCache.get(token).ifPresent(state -> {
+            state.setControlMessageId(promptMessage.getMessageId());
+            requestCache.update(state);
+            scheduleIntentCleanup(token, promptMessage);
+        });
+    }
+
+    private void scheduleIntentCleanup(String token, Message promptMessage) {
+        CompletableFuture
+                .delayedExecutor(7, TimeUnit.SECONDS)
+                .execute(() -> requestCache.get(token).ifPresent(state -> {
+                    Integer controlMessageId = state.getControlMessageId();
+                    if (controlMessageId == null || !controlMessageId.equals(promptMessage.getMessageId())) {
+                        return;
+                    }
+
+                    cleaner.deleteNow(this, promptMessage.getChatId(), promptMessage.getMessageId());
+                    requestCache.remove(token);
+                }));
     }
 
     @SneakyThrows
