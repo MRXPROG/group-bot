@@ -11,7 +11,7 @@ public interface BookingFlowService {
 
     void startFlowInGroup(TelegramLongPollingBot bot, Message msg, SlotDTO slot, String userFullName);
 
-    void handleDecision(TelegramLongPollingBot bot, CallbackQuery cbq, Long slotId, String decision);
+    void handleDecision(TelegramLongPollingBot bot, CallbackQuery cbq, UserFlowState state, String decision);
 
     void expireFlow(TelegramLongPollingBot bot, UserFlowState state, CallbackQuery cbqOrNull);
 }

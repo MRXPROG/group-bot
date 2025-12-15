@@ -99,14 +99,9 @@ public class BookingFlowServiceImpl implements BookingFlowService {
     }
 
     @Override
-    public void handleDecision(TelegramLongPollingBot bot, CallbackQuery cbq, Long slotId, String decision) {
+    public void handleDecision(TelegramLongPollingBot bot, CallbackQuery cbq, UserFlowState state, String decision) {
         Long userId = cbq.getFrom().getId();
-
-        UserFlowState state = stateRepo.findByUserId(userId).orElse(null);
-        if (state == null || !state.getSlotId().equals(slotId)) {
-            answer(bot, cbq, "⏳ Час вийшов. Створи нову заявку.");
-            return;
-        }
+        Long slotId = state.getSlotId();
 
         if ("NO".equalsIgnoreCase(decision)) {
             expireFlow(bot, state, cbq);

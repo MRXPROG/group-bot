@@ -285,6 +285,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         Long slotId = Long.parseLong(p[1]);
+        Long expectedUserId = Long.parseLong(p[2]);
         String decision = p[3];
 
         Long chatId = cbq.getMessage().getChatId();
@@ -298,7 +299,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         var state = stateOpt.get();
-        if (!userId.equals(state.getUserId())) {
+        if (!expectedUserId.equals(state.getUserId()) || !userId.equals(state.getUserId())) {
             answer(cbq.getId(), "❌ Ця кнопка не для тебе");
             return;
         }
@@ -309,7 +310,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             return;
         }
 
-        bookingFlow.handleDecision(this, cbq, slotId, decision);
+        bookingFlow.handleDecision(this, cbq, state, decision);
     }
 
     @SneakyThrows
