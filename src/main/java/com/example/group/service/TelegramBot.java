@@ -115,9 +115,20 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
+
+        if (update.hasMessage()) {
+            Message msg = update.getMessage();
+
+            if (msg.hasText() && msg.getReplyToMessage() == null) {
+                if (!isGeneralMessage(msg)) {
+                    return;
+                }
+            }
+        }
+
         Integer uid = update.getUpdateId();
         if (uid != null && !markSeen(uid)) {
-            return; // дубликат
+            return;
         }
 
         Long chatId = extractChatId(update);
@@ -153,9 +164,36 @@ public class TelegramBot extends TelegramLongPollingBot {
         return null;
     }
 
+    private boolean isGeneralMessage(Message msg) {
+        if (msg == null) {
+            return false;
+        }
+
+        Integer threadId = msg.getMessageThreadId();
+
+        // обычная группа (не forum)
+        if (threadId == null) {
+            return true;
+        }
+
+        // forum general topic
+        return threadId == 1;
+    }
+
     @SneakyThrows
     private void handleMessage(Message msg) {
         String text = msg.getText().trim();
+
+        if (msg.getReplyToMessage() != null) {
+            if (tryHandleReplyFlow(msg)) {
+                return;
+            }
+            return;
+        }
+
+        if (!isGeneralMessage(msg)) {
+            return;
+        }
 
         if ("/bind".equalsIgnoreCase(text)) {
             handleBindCommand(msg);
