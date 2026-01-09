@@ -63,6 +63,9 @@ public class SlotPostUpdater {
     private void refreshSingle(Long chatId, GroupShiftMessage msg) {
         SlotDTO slot = fetchSlot(msg.getSlotId());
         if (slot == null) {
+            if (handleMissingSlot(chatId, msg)) {
+                return;
+            }
             log.info("SlotPostUpdater: slot {} not found, keeping post {} for potential re-open", msg.getSlotId(), msg.getMessageId());
             return;
         }
@@ -109,6 +112,25 @@ public class SlotPostUpdater {
         }
     }
 
+    private boolean handleMissingSlot(Long chatId, GroupShiftMessage msg) {
+        Long slotId = msg.getSlotId();
+        SlotDTO cancelled = api.getCancelledSlotById(slotId);
+        if (cancelled != null) {
+            log.info("SlotPostUpdater: slot {} is cancelled, removing post {}", slotId, msg.getMessageId());
+            cleanupCancelledSlotPost(chatId, msg, cancelled);
+            return true;
+        }
+
+        SlotDTO expired = api.getExpiredSlotById(slotId);
+        if (expired != null) {
+            log.info("SlotPostUpdater: slot {} is expired, updating post {}", slotId, msg.getMessageId());
+            cleanupSlotPost(chatId, msg, expired);
+            return true;
+        }
+
+        return false;
+    }
+
     private boolean isSlotFinished(SlotDTO slot) {
         LocalDateTime end = slot.getEnd();
         return end != null && end.isBefore(LocalDateTime.now());
@@ -125,6 +147,27 @@ public class SlotPostUpdater {
         } catch (TelegramApiException e) {
             log.warn("SlotPostUpdater: failed to mark finished slot message {}: {}", msg.getMessageId(), e.getMessage());
         }
+        shiftMsgRepo.delete(msg);
+        slotSnapshots.remove(msg.getSlotId());
+    }
+
+    private void cleanupCancelledSlotPost(Long chatId, GroupShiftMessage msg, SlotDTO slot) {
+        boolean deleted = false;
+        try {
+            slotPostService.deleteSlotPost(bot, chatId, msg.getMessageId());
+            deleted = true;
+        } catch (TelegramApiException e) {
+            log.warn("SlotPostUpdater: failed to delete cancelled slot message {}: {}", msg.getMessageId(), e.getMessage());
+        }
+
+        if (!deleted) {
+            try {
+                slotPostService.markCancelledPost(bot, chatId, msg.getMessageId(), slot);
+            } catch (TelegramApiException e) {
+                log.warn("SlotPostUpdater: failed to archive cancelled slot message {}: {}", msg.getMessageId(), e.getMessage());
+            }
+        }
+
         shiftMsgRepo.delete(msg);
         slotSnapshots.remove(msg.getSlotId());
     }

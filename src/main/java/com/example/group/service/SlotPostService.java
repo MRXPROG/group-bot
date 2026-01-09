@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -106,6 +107,21 @@ public class SlotPostService {
             throws TelegramApiException {
         PostContent content = buildPostContent(slot, "ℹ️ Зміна завершена", "", false);
         executeEdit(bot, chatId, messageId, content.text(), null);
+    }
+
+    public void markCancelledPost(TelegramLongPollingBot bot, Long chatId, Integer messageId, SlotDTO slot)
+            throws TelegramApiException {
+        PostContent content = buildPostContent(slot, "❌ Зміна скасована", "", false);
+        executeEdit(bot, chatId, messageId, content.text(), null);
+    }
+
+    public void deleteSlotPost(TelegramLongPollingBot bot, Long chatId, Integer messageId)
+            throws TelegramApiException {
+        DeleteMessage delete = DeleteMessage.builder()
+                .chatId(chatId.toString())
+                .messageId(messageId)
+                .build();
+        bot.execute(delete);
     }
 
     private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {

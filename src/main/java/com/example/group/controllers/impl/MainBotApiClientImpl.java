@@ -75,6 +75,28 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     }
 
     @Override
+    public SlotDTO getExpiredSlotById(Long slotId) {
+        try {
+            String url = baseUrl + "/slots/expired/" + slotId;
+            return restTemplate.getForObject(url, SlotDTO.class);
+        } catch (Exception e) {
+            log.info("Failed to load expired slot {}: {}", slotId, e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
+    public SlotDTO getCancelledSlotById(Long slotId) {
+        try {
+            String url = baseUrl + "/slots/cancelled/" + slotId;
+            return restTemplate.getForObject(url, SlotDTO.class);
+        } catch (Exception e) {
+            log.info("Failed to load cancelled slot {}: {}", slotId, e.getMessage());
+            return null;
+        }
+    }
+
+    @Override
     public void createBooking(Long telegramUserId, Long slotId, String username, String firstName, String lastName) {
         try {
             String url = baseUrl + "/bookings";
