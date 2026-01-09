@@ -128,6 +128,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
                 String firstName = state.getFirstName();
                 String lastName = state.getLastName();
+                String username = null;
 
                 // fallback in case user changed name during the flow or we didn't capture it
                 if (firstName == null && cbq.getFrom() != null) {
@@ -136,8 +137,11 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                 if (lastName == null && cbq.getFrom() != null) {
                     lastName = cbq.getFrom().getLastName();
                 }
+                if (cbq.getFrom() != null) {
+                    username = cbq.getFrom().getUserName();
+                }
 
-                mainApi.createBooking(userId, slotId, firstName, lastName);
+                mainApi.createBooking(userId, slotId, username, firstName, lastName);
 
                 SendMessage done = new SendMessage(
                         state.getChatId().toString(),

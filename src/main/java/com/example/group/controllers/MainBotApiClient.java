@@ -16,5 +16,5 @@ public interface MainBotApiClient {
     SlotDTO getSlotById(Long slotId);
 
     /** Создать запись на слот для пользователя */
-    void createBooking(Long telegramUserId, Long slotId, String firstName, String lastName);
+    void createBooking(Long telegramUserId, Long slotId, String username, String firstName, String lastName);
 }
