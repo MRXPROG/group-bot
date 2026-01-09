@@ -116,8 +116,13 @@ public class SlotPostUpdater {
         Long slotId = msg.getSlotId();
         SlotDTO expired = api.getExpiredSlotById(slotId);
         if (expired != null) {
-            log.info("SlotPostUpdater: slot {} is expired, updating post {}", slotId, msg.getMessageId());
-            cleanupSlotPost(chatId, msg, expired);
+            if (isSlotFinished(expired)) {
+                log.info("SlotPostUpdater: slot {} is expired, updating post {}", slotId, msg.getMessageId());
+                cleanupSlotPost(chatId, msg, expired);
+            } else {
+                log.info("SlotPostUpdater: slot {} is started, updating post {}", slotId, msg.getMessageId());
+                refreshMissingSlotPost(chatId, msg, expired);
+            }
             return true;
         }
 
@@ -144,6 +149,21 @@ public class SlotPostUpdater {
         }
         shiftMsgRepo.delete(msg);
         slotSnapshots.remove(msg.getSlotId());
+    }
+
+    private void refreshMissingSlotPost(Long chatId, GroupShiftMessage msg, SlotDTO slot) {
+        SlotSnapshot previous = slotSnapshots.get(slot.getId());
+        SlotSnapshot current = captureSnapshot(slot, isSlotStarted(slot));
+        if (current.equals(previous)) {
+            return;
+        }
+
+        try {
+            slotPostService.publishSlotPost(bot, chatId, slot, msg.isMorningPost(), msg.isEveningPost());
+            slotSnapshots.put(slot.getId(), current);
+        } catch (Exception e) {
+            log.error("SlotPostUpdater: failed to refresh missing slot {}: {}", slot.getId(), e.getMessage());
+        }
     }
 
     private void cleanupCancelledSlotPost(Long chatId, GroupShiftMessage msg, SlotDTO slot) {
