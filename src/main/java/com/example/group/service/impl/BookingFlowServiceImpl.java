@@ -340,8 +340,9 @@ public class BookingFlowServiceImpl implements BookingFlowService {
 
         boolean reserved = slot.getStatus() == SlotDTO.SlotStatus.RESERVED;
         boolean full = availability.isFull();
+        boolean started = slot.getStart() != null && slot.getStart().isBefore(java.time.LocalDateTime.now());
 
-        return reserved || full;
+        return reserved || full || started;
     }
 
     private int countActiveBookings(SlotDTO slot) {
