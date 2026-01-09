@@ -71,11 +71,11 @@ public class MainBotApiClientImpl implements MainBotApiClient {
     }
 
     @Override
-    public void createBooking(Long telegramUserId, Long slotId, String firstName, String lastName) {
+    public void createBooking(Long telegramUserId, Long slotId, String username, String firstName, String lastName) {
         try {
             String url = baseUrl + "/bookings";
 
-            var body = new BookingCreateRequest(telegramUserId, slotId, firstName, lastName);
+            var body = new BookingCreateRequest(telegramUserId, slotId, username, firstName, lastName);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -127,5 +127,5 @@ public class MainBotApiClientImpl implements MainBotApiClient {
         return responseBody;
     }
 
-    private record BookingCreateRequest(Long telegramUserId, Long slotId, String firstName, String lastName) {}
+    private record BookingCreateRequest(Long telegramUserId, Long slotId, String username, String firstName, String lastName) {}
 }
