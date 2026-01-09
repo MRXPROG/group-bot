@@ -56,17 +56,8 @@ public class SlotPostService {
                                                 boolean morningPost,
                                                 boolean eveningPost,
                                                 boolean forceNewPost) throws Exception {
-        String date = s.getStart().toLocalDate().format(DATE);
-        String day = s.getStart().toLocalDate().format(DAY_OF_WEEK);
-        String time = s.getStart().toLocalTime().format(TIME) + " - " +
-                s.getEnd().toLocalTime().format(TIME);
-
-        String innLine = s.isInnRequired() ? " • ІПН обов'язковий" : "";
-
         int activeBookings = countActiveBookings(s);
         SlotAvailability availability = SlotAvailabilityCalculator.calculate(s.getCapacity(), activeBookings);
-
-        int totalPlaces = availability.totalPlaces();
 
         boolean isFull = availability.isFull();
         boolean isReserved = resolveStatus(s) == SlotDTO.SlotStatus.RESERVED;
@@ -88,58 +79,33 @@ public class SlotPostService {
                 ? "⚠️ Зміна поки повна"
                 : (isReserved ?  "⏸ Зміна у резерві" : "📢 Нова зміна - запис відкрито!");
 
-        String text = """
-                %s
-
-                📍 %s
-                🏙️ %s
-                📅 %s (%s)
-                🕒 %s
-                👥 %d/%d зайнято%s
-
-                %s
-                """.formatted(
-                title,
-                escapeHtml(s.getPlaceName()),
-                escapeHtml(s.getCityName()),
-                date,
-                day,
-                time,
-                availability.activeBookings(),
-                totalPlaces,
-                innLine,
-                employees + fullNotice
-        ).trim();
-
-        InlineKeyboardMarkup kb = null;
-        if (!isFull && !isReserved && !isStarted) {
-            InlineKeyboardButton join = new InlineKeyboardButton();
-            join.setText("\uD83D\uDD17  Записатись на цю зміну у боті  \uD83D\uDD17 ");
-            join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
-
-            kb = new InlineKeyboardMarkup();
-            kb.setKeyboard(List.of(List.of(join)));
-        }
+        PostContent content = buildPostContent(s, title, fullNotice, !isFull && !isReserved && !isStarted);
 
         Optional<GroupShiftMessage> existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
 
         if (existingOpt.isEmpty() || forceNewPost) {
-            return sendAndStore(bot, chatId, s, morningPost, eveningPost, text, kb, existingOpt.orElse(null));
+            return sendAndStore(bot, chatId, s, morningPost, eveningPost, content.text(), content.keyboard(), existingOpt.orElse(null));
         }
 
         GroupShiftMessage record = existingOpt.get();
         try {
-            Message edited = executeEdit(bot, chatId, record.getMessageId(), text, kb);
+            Message edited = executeEdit(bot, chatId, record.getMessageId(), content.text(), content.keyboard());
             storeUpdated(record, edited.getMessageId(), morningPost, eveningPost);
             return edited;
         } catch (TelegramApiException e) {
             if (isMessageMissing(e)) {
                 log.warn("SlotPostService: message {} for slot {} was removed, re-publishing", record.getMessageId(), s.getId());
-                return sendAndStore(bot, chatId, s, morningPost, eveningPost, text, kb, record);
+                return sendAndStore(bot, chatId, s, morningPost, eveningPost, content.text(), content.keyboard(), record);
             }
             log.error("SlotPostService: failed to edit message {} for slot {}: {}", record.getMessageId(), s.getId(), e.getMessage());
             throw e;
         }
+    }
+
+    public void markFinishedPost(TelegramLongPollingBot bot, Long chatId, Integer messageId, SlotDTO slot)
+            throws TelegramApiException {
+        PostContent content = buildPostContent(slot, "ℹ️ Зміна завершена", "", false);
+        executeEdit(bot, chatId, messageId, content.text(), null);
     }
 
     private String buildEmployeeBlock(List<SlotBookingDTO> bookings) {
@@ -216,6 +182,59 @@ public class SlotPostService {
     private String wrapInCollapsedComment(String text) {
         return "<blockquote expandable>" + text + "</blockquote>";
     }
+
+    private PostContent buildPostContent(SlotDTO slot, String title, String fullNotice, boolean allowJoinButton) {
+        String date = slot.getStart().toLocalDate().format(DATE);
+        String day = slot.getStart().toLocalDate().format(DAY_OF_WEEK);
+        String time = slot.getStart().toLocalTime().format(TIME) + " - " +
+                slot.getEnd().toLocalTime().format(TIME);
+
+        String innLine = slot.isInnRequired() ? " • ІПН обов'язковий" : "";
+
+        int activeBookings = countActiveBookings(slot);
+        SlotAvailability availability = SlotAvailabilityCalculator.calculate(slot.getCapacity(), activeBookings);
+
+        int totalPlaces = availability.totalPlaces();
+
+        String employees = buildEmployeeBlock(slot.getBookings());
+
+        String text = """
+                %s
+
+                📍 %s
+                🏙️ %s
+                📅 %s (%s)
+                🕒 %s
+                👥 %d/%d зайнято%s
+
+                %s
+                """.formatted(
+                title,
+                escapeHtml(slot.getPlaceName()),
+                escapeHtml(slot.getCityName()),
+                date,
+                day,
+                time,
+                availability.activeBookings(),
+                totalPlaces,
+                innLine,
+                employees + fullNotice
+        ).trim();
+
+        InlineKeyboardMarkup kb = null;
+        if (allowJoinButton) {
+            InlineKeyboardButton join = new InlineKeyboardButton();
+            join.setText("\uD83D\uDD17  Записатись на цю зміну у боті  \uD83D\uDD17 ");
+            join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + slot.getId());
+
+            kb = new InlineKeyboardMarkup();
+            kb.setKeyboard(List.of(List.of(join)));
+        }
+
+        return new PostContent(text, kb);
+    }
+
+    private record PostContent(String text, InlineKeyboardMarkup keyboard) {}
 
     private Message sendAndStore(TelegramLongPollingBot bot,
                                  Long chatId,
