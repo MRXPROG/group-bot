@@ -12,8 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.time.LocalDateTime;
@@ -70,8 +68,8 @@ public class SlotPostUpdater {
         }
 
         if (isSlotFinished(slot)) {
-            log.info("SlotPostUpdater: slot {} is finished, cleaning up post {}", msg.getSlotId(), msg.getMessageId());
-            cleanupSlotPost(chatId, msg);
+            log.info("SlotPostUpdater: slot {} is finished, updating post {}", msg.getSlotId(), msg.getMessageId());
+            cleanupSlotPost(chatId, msg, slot);
             return;
         }
 
@@ -121,36 +119,14 @@ public class SlotPostUpdater {
         return start != null && start.isBefore(LocalDateTime.now());
     }
 
-    private void cleanupSlotPost(Long chatId, GroupShiftMessage msg) {
-        if (!deleteSlotPost(chatId, msg.getMessageId())) {
-            markAsServiceMessage(chatId, msg.getMessageId());
+    private void cleanupSlotPost(Long chatId, GroupShiftMessage msg, SlotDTO slot) {
+        try {
+            slotPostService.markFinishedPost(bot, chatId, msg.getMessageId(), slot);
+        } catch (TelegramApiException e) {
+            log.warn("SlotPostUpdater: failed to mark finished slot message {}: {}", msg.getMessageId(), e.getMessage());
         }
         shiftMsgRepo.delete(msg);
         slotSnapshots.remove(msg.getSlotId());
-    }
-
-    private boolean deleteSlotPost(Long chatId, Integer messageId) {
-        try {
-            DeleteMessage delete = new DeleteMessage(chatId.toString(), messageId);
-            bot.execute(delete);
-            return true;
-        } catch (TelegramApiException e) {
-            log.warn("SlotPostUpdater: failed to delete expired slot message {}: {}", messageId, e.getMessage());
-            return false;
-        }
-    }
-
-    private void markAsServiceMessage(Long chatId, Integer messageId) {
-        try {
-            EditMessageText edit = EditMessageText.builder()
-                    .chatId(chatId.toString())
-                    .messageId(messageId)
-                    .text("ℹ️ Зміна завершена. Пост архівовано.")
-                    .build();
-            bot.execute(edit);
-        } catch (TelegramApiException e) {
-            log.warn("SlotPostUpdater: failed to convert expired slot message {} into service message: {}", messageId, e.getMessage());
-        }
     }
 
     private SlotSnapshot captureSnapshot(SlotDTO slot, boolean started) {
