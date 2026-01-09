@@ -70,16 +70,21 @@ public class SlotPostService {
 
         boolean isFull = availability.isFull();
         boolean isReserved = resolveStatus(s) == SlotDTO.SlotStatus.RESERVED;
+        boolean isStarted = isSlotStarted(s);
 
         String employees = buildEmployeeBlock(s.getBookings());
 
-        String fullNotice = isFull
+        String fullNotice = isStarted
+                ? "\n\n⏱ Зміна вже почалась. Запис закрито."
+                : isFull
                 ? "\n\n⚠️ Зміна повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
                 : isReserved
                 ? "\n\n⏸ Запис призупинено. Слідкуй за оновленнями."
                 : "";
 
-        String title = isFull
+        String title = isStarted
+                ? "⏱ Зміна вже почалась"
+                : isFull
                 ? "⚠️ Зміна поки повна"
                 : (isReserved ?  "⏸ Зміна у резерві" : "📢 Нова зміна - запис відкрито!");
 
@@ -107,7 +112,7 @@ public class SlotPostService {
         ).trim();
 
         InlineKeyboardMarkup kb = null;
-        if (!isFull && !isReserved) {
+        if (!isFull && !isReserved && !isStarted) {
             InlineKeyboardButton join = new InlineKeyboardButton();
             join.setText("\uD83D\uDD17  Записатись на цю зміну у боті  \uD83D\uDD17 ");
             join.setUrl("https://t.me/" + config.getMainBotUsername() + "?start=slot_" + s.getId());
@@ -176,6 +181,13 @@ public class SlotPostService {
         }
 
         return Optional.ofNullable(slot.getStatus()).orElse(SlotDTO.SlotStatus.READY);
+    }
+
+    private boolean isSlotStarted(SlotDTO slot) {
+        if (slot == null || slot.getStart() == null) {
+            return false;
+        }
+        return slot.getStart().isBefore(LocalDateTime.now());
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {

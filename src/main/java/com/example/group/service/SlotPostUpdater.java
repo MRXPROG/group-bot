@@ -75,8 +75,13 @@ public class SlotPostUpdater {
             return;
         }
 
-        SlotSnapshot current = captureSnapshot(slot);
         SlotSnapshot previous = slotSnapshots.get(slot.getId());
+        boolean started = isSlotStarted(slot);
+        if (started && previous != null && previous.started()) {
+            return;
+        }
+
+        SlotSnapshot current = captureSnapshot(slot, started);
         if (current.equals(previous)) {
             return;
         }
@@ -111,6 +116,11 @@ public class SlotPostUpdater {
         return end != null && end.isBefore(LocalDateTime.now());
     }
 
+    private boolean isSlotStarted(SlotDTO slot) {
+        LocalDateTime start = slot.getStart();
+        return start != null && start.isBefore(LocalDateTime.now());
+    }
+
     private void cleanupSlotPost(Long chatId, GroupShiftMessage msg) {
         if (!deleteSlotPost(chatId, msg.getMessageId())) {
             markAsServiceMessage(chatId, msg.getMessageId());
@@ -143,7 +153,7 @@ public class SlotPostUpdater {
         }
     }
 
-    private SlotSnapshot captureSnapshot(SlotDTO slot) {
+    private SlotSnapshot captureSnapshot(SlotDTO slot, boolean started) {
         int activeCount = countActiveBookings(slot);
         SlotAvailability availability = SlotAvailabilityCalculator.calculate(slot.getCapacity(), activeCount);
 
@@ -159,7 +169,8 @@ public class SlotPostUpdater {
                 activeCount,
                 availability.availablePlaces(),
                 participants,
-                resolveStatus(slot)
+                resolveStatus(slot),
+                started
         );
     }
 
@@ -195,7 +206,12 @@ public class SlotPostUpdater {
         return status + ":" + first + ":" + last;
     }
 
-    private record SlotSnapshot(int capacity, int activeBookings, int freePlaces, List<String> participants, SlotDTO.SlotStatus status) {
+    private record SlotSnapshot(int capacity,
+                                int activeBookings,
+                                int freePlaces,
+                                List<String> participants,
+                                SlotDTO.SlotStatus status,
+                                boolean started) {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -203,13 +219,14 @@ public class SlotPostUpdater {
             return capacity == that.capacity
                     && activeBookings == that.activeBookings
                     && freePlaces == that.freePlaces
+                    && started == that.started
                     && status == that.status
                     && Objects.equals(participants, that.participants);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(capacity, activeBookings, freePlaces, participants, status);
+            return Objects.hash(capacity, activeBookings, freePlaces, participants, status, started);
         }
     }
 }
