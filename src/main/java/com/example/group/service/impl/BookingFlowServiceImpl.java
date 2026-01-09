@@ -10,7 +10,11 @@ import com.example.group.repository.UserFlowStateRepository;
 import com.example.group.service.BookingFlowService;
 import com.example.group.service.SlotPostUpdater;
 import com.example.group.service.util.MessageCleaner;
+import com.example.group.service.exception.BookingBadRequestException;
 import com.example.group.service.exception.BookingConflictException;
+import com.example.group.service.exception.BookingNameConflictException;
+import com.example.group.service.exception.BookingNotFoundException;
+import com.example.group.service.exception.BookingSlotUnavailableException;
 import com.example.group.service.exception.BookingTimeRestrictionException;
 import com.example.group.service.util.SlotAvailabilityCalculator;
 import com.example.group.service.util.SlotAvailabilityCalculator.SlotAvailability;
@@ -156,8 +160,20 @@ public class BookingFlowServiceImpl implements BookingFlowService {
             } catch (BookingConflictException e) {
                 log.warn("User {} already has booking for slot {}", userId, slotId);
                 answer(bot, cbq, "ℹ️ Ти вже у цій зміні.");
+            } catch (BookingNameConflictException e) {
+                log.warn("Name conflict for user {} and slot {}: {}", userId, slotId, e.getMessage());
+                answer(bot, cbq, e.getMessage());
+            } catch (BookingSlotUnavailableException e) {
+                log.warn("Slot unavailable for user {} and slot {}: {}", userId, slotId, e.getMessage());
+                answer(bot, cbq, e.getMessage());
             } catch (BookingTimeRestrictionException e) {
                 log.warn("Booking time restriction for user {} and slot {}: {}", userId, slotId, e.getMessage());
+                answer(bot, cbq, e.getMessage());
+            } catch (BookingBadRequestException e) {
+                log.warn("Booking bad request for user {} and slot {}: {}", userId, slotId, e.getMessage());
+                answer(bot, cbq, e.getMessage());
+            } catch (BookingNotFoundException e) {
+                log.warn("Booking not found for user {} and slot {}: {}", userId, slotId, e.getMessage());
                 answer(bot, cbq, e.getMessage());
             } catch (Exception e) {
                 log.error("Failed to create booking: {}", e.getMessage());

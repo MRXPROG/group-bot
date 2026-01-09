@@ -20,7 +20,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.example.group.service.exception.BookingBadRequestException;
 import com.example.group.service.exception.BookingConflictException;
+import com.example.group.service.exception.BookingNameConflictException;
+import com.example.group.service.exception.BookingNotFoundException;
+import com.example.group.service.exception.BookingSlotUnavailableException;
 import com.example.group.service.exception.BookingTimeRestrictionException;
 
 @Slf4j
@@ -88,11 +92,25 @@ public class MainBotApiClientImpl implements MainBotApiClient {
                     e.getStatusCode(), responseBody);
 
             if (HttpStatus.CONFLICT.equals(e.getStatusCode())) {
+                if (isNameConflict(responseBody)) {
+                    throw new BookingNameConflictException(resolveNameConflictMessage(responseBody));
+                }
+                if (isSlotUnavailable(responseBody)) {
+                    throw new BookingSlotUnavailableException("⏳ Запис на зміну наразі недоступний.");
+                }
                 throw new BookingConflictException("Booking already exists for slot");
             }
 
             if (HttpStatus.BAD_REQUEST.equals(e.getStatusCode()) && isBookingDateRestricted(responseBody)) {
                 throw new BookingTimeRestrictionException(resolveRestrictionMessage(responseBody));
+            }
+
+            if (HttpStatus.BAD_REQUEST.equals(e.getStatusCode())) {
+                throw new BookingBadRequestException(resolveBadRequestMessage(responseBody));
+            }
+
+            if (HttpStatus.NOT_FOUND.equals(e.getStatusCode())) {
+                throw new BookingNotFoundException(resolveNotFoundMessage(responseBody));
             }
 
             throw new RuntimeException("Booking creation failed with status " + e.getStatusCode(), e);
@@ -113,6 +131,24 @@ public class MainBotApiClientImpl implements MainBotApiClient {
                 || normalized.contains("запис на вибрану дату недоступний за правилами запису");
     }
 
+    private boolean isNameConflict(String responseBody) {
+        if (responseBody == null) {
+            return false;
+        }
+        String normalized = responseBody.toLowerCase();
+        return normalized.contains("same first and last name")
+                || normalized.contains("user with the same first and last name already exists");
+    }
+
+    private boolean isSlotUnavailable(String responseBody) {
+        if (responseBody == null) {
+            return false;
+        }
+        String normalized = responseBody.toLowerCase();
+        return normalized.contains("slot is no longer available")
+                || normalized.contains("slot not found or unavailable");
+    }
+
     private String resolveRestrictionMessage(String responseBody) {
         String defaultMessage = "❌ Запис на вибрану дату недоступний за правилами запису.";
 
@@ -124,6 +160,30 @@ public class MainBotApiClientImpl implements MainBotApiClient {
             return defaultMessage;
         }
 
+        return responseBody;
+    }
+
+    private String resolveNameConflictMessage(String responseBody) {
+        String defaultMessage = "❌ Користувач з таким ім'ям та прізвищем вже існує.";
+        if (responseBody == null || responseBody.isBlank()) {
+            return defaultMessage;
+        }
+        return responseBody;
+    }
+
+    private String resolveBadRequestMessage(String responseBody) {
+        String defaultMessage = "❌ Некоректні дані для запису.";
+        if (responseBody == null || responseBody.isBlank()) {
+            return defaultMessage;
+        }
+        return responseBody;
+    }
+
+    private String resolveNotFoundMessage(String responseBody) {
+        String defaultMessage = "❌ Зміну не знайдено або вона недоступна.";
+        if (responseBody == null || responseBody.isBlank()) {
+            return defaultMessage;
+        }
         return responseBody;
     }
 
