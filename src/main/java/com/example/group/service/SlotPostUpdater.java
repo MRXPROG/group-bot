@@ -114,13 +114,6 @@ public class SlotPostUpdater {
 
     private boolean handleMissingSlot(Long chatId, GroupShiftMessage msg) {
         Long slotId = msg.getSlotId();
-        SlotDTO cancelled = api.getCancelledSlotById(slotId);
-        if (cancelled != null) {
-            log.info("SlotPostUpdater: slot {} is cancelled, removing post {}", slotId, msg.getMessageId());
-            cleanupCancelledSlotPost(chatId, msg, cancelled);
-            return true;
-        }
-
         SlotDTO expired = api.getExpiredSlotById(slotId);
         if (expired != null) {
             log.info("SlotPostUpdater: slot {} is expired, updating post {}", slotId, msg.getMessageId());
@@ -128,7 +121,9 @@ public class SlotPostUpdater {
             return true;
         }
 
-        return false;
+        log.info("SlotPostUpdater: slot {} is removed, deleting post {}", slotId, msg.getMessageId());
+        cleanupCancelledSlotPost(chatId, msg, null);
+        return true;
     }
 
     private boolean isSlotFinished(SlotDTO slot) {
@@ -160,7 +155,7 @@ public class SlotPostUpdater {
             log.warn("SlotPostUpdater: failed to delete cancelled slot message {}: {}", msg.getMessageId(), e.getMessage());
         }
 
-        if (!deleted) {
+        if (!deleted && slot != null) {
             try {
                 slotPostService.markCancelledPost(bot, chatId, msg.getMessageId(), slot);
             } catch (TelegramApiException e) {
