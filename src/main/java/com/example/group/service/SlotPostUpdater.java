@@ -8,6 +8,7 @@ import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
 import com.example.group.service.util.SlotAvailabilityCalculator;
 import com.example.group.service.util.SlotAvailabilityCalculator.SlotAvailability;
+import com.example.group.service.util.TimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -133,12 +134,12 @@ public class SlotPostUpdater {
 
     private boolean isSlotFinished(SlotDTO slot) {
         LocalDateTime end = slot.getEnd();
-        return end != null && end.isBefore(LocalDateTime.now());
+        return end != null && end.isBefore(LocalDateTime.now(TimeUtil.UKR));
     }
 
     private boolean isSlotStarted(SlotDTO slot) {
         LocalDateTime start = slot.getStart();
-        return start != null && start.isBefore(LocalDateTime.now());
+        return start != null && start.isBefore(LocalDateTime.now(TimeUtil.UKR));
     }
 
     private void cleanupSlotPost(Long chatId, GroupShiftMessage msg, SlotDTO slot) {
