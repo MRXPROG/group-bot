@@ -102,7 +102,7 @@ public class BookingFlowServiceImpl implements BookingFlowService {
                     .userMessageId(msg.getMessageId())
                     .botMessageId(botMsg.getMessageId())
                     .slotId(actualSlot.getId())
-                    .expiresAt(LocalDateTime.now().plusSeconds(30))
+                    .expiresAt(LocalDateTime.now().plusSeconds(60))
                     .build();
 
             stateRepo.save(state);
