@@ -63,10 +63,13 @@ public class SlotPostService {
         boolean isFull = availability.isFull();
         boolean isReserved = resolveStatus(s) == SlotDTO.SlotStatus.RESERVED;
         boolean isStarted = isSlotStarted(s);
+        boolean isFinished = isSlotFinished(s);
 
         String employees = buildEmployeeBlock(s.getBookings());
 
-        String fullNotice = isStarted
+        String fullNotice = isFinished
+                ? "\n\n✅ Зміна завершилась."
+                : isStarted
                 ? "\n\n⏱ Зміна вже почалась. Запис закрито."
                 : isFull
                 ? "\n\n⚠️ Зміна повна. Слідкуй за оновленнями — щойно звільниться місце, пост оновиться."
@@ -74,13 +77,20 @@ public class SlotPostService {
                 ? "\n\n⏸ Запис призупинено. Слідкуй за оновленнями."
                 : "";
 
-        String title = isStarted
+        String title = isFinished
+                ? "ℹ️ Зміна завершена"
+                : isStarted
                 ? "⏱ Зміна вже почалась"
                 : isFull
                 ? "⚠️ Зміна поки повна"
                 : (isReserved ?  "⏸ Зміна у резерві" : "📢 Нова зміна - запис відкрито!");
 
-        PostContent content = buildPostContent(s, title, fullNotice, !isFull && !isReserved && !isStarted);
+        PostContent content = buildPostContent(
+                s,
+                title,
+                fullNotice,
+                !isFinished && !isFull && !isReserved && !isStarted
+        );
 
         Optional<GroupShiftMessage> existingOpt = shiftMsgRepo.findByChatIdAndSlotId(chatId, s.getId());
 
@@ -170,6 +180,13 @@ public class SlotPostService {
             return false;
         }
         return slot.getStart().isBefore(LocalDateTime.now());
+    }
+
+    private boolean isSlotFinished(SlotDTO slot) {
+        if (slot == null || slot.getEnd() == null) {
+            return false;
+        }
+        return slot.getEnd().isBefore(LocalDateTime.now());
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
