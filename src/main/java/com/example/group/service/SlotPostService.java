@@ -8,6 +8,7 @@ import com.example.group.model.GroupShiftMessage;
 import com.example.group.repository.GroupShiftMessageRepository;
 import com.example.group.service.util.SlotAvailabilityCalculator;
 import com.example.group.service.util.SlotAvailabilityCalculator.SlotAvailability;
+import com.example.group.service.util.TimeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -179,14 +180,14 @@ public class SlotPostService {
         if (slot == null || slot.getStart() == null) {
             return false;
         }
-        return slot.getStart().isBefore(LocalDateTime.now());
+        return slot.getStart().isBefore(LocalDateTime.now(TimeUtil.UKR));
     }
 
     private boolean isSlotFinished(SlotDTO slot) {
         if (slot == null || slot.getEnd() == null) {
             return false;
         }
-        return slot.getEnd().isBefore(LocalDateTime.now());
+        return slot.getEnd().isBefore(LocalDateTime.now(TimeUtil.UKR));
     }
 
     private String formatBookingLine(SlotBookingDTO booking) {
